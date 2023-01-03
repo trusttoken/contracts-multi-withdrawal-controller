@@ -1,0 +1,27 @@
+{
+  "extends": "tsconfig/base.json",
+  "compilerOptions": {
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "target": "esnext",
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "build/*": ["build/*"],
+      "build": ["build"],
+      "fixtures/*": ["test/fixtures/*"],
+      "fixtures": ["test/fixtures"],
+      "utils/*": ["test/utils/*"],
+      "utils": ["test/utils"],
+      "contracts/*": ["build/types/*"],
+      "contracts": ["build/types", "build/types/factories"],
+      "config": ["test/config"],
+      "config/*": ["test/config/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "contracts",
+    "test"
+  ]
+}
