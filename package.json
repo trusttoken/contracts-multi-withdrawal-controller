@@ -14,7 +14,8 @@
     "lint:fix": "pnpm run lint:prettier --write --loglevel error && pnpm run lint:sol --fix && pnpm run lint:ts --fix",
     "lint": "pnpm run lint:sol && pnpm run lint:prettier --check --loglevel error && pnpm run lint:ts",
     "test:unit": "mocha 'test/**/*.test.ts'",
-    "test": "pnpm test:unit"
+    "test": "pnpm test:unit",
+    "test:ci": "pnpm run test"
   },
   "prettier": "prettier-config-archblock/contracts.json",
   "dependencies": {
