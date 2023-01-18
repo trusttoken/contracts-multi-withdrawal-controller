@@ -1,24 +1,14 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.16;
 
-import {IWithdrawController} from "../carbon/interfaces/IWithdrawController.sol";
+import {IWithdrawController, WithdrawalException} from "./IWithdrawController.sol";
+import {Status, WithdrawAllowed} from "../carbon/interfaces/IWithdrawController.sol";
 import {ITrancheVault} from "../carbon/interfaces/ITrancheVault.sol";
-import {IStructuredPortfolio, Status} from "../carbon/interfaces/IStructuredPortfolio.sol";
+import {IStructuredPortfolio} from "../carbon/interfaces/IStructuredPortfolio.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {AccessControlEnumerable} from "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-
-struct WithdrawAllowed {
-    Status status;
-    bool value;
-}
-
-struct WithdrawalException {
-    address lender;
-    uint256 shareAmount;
-    uint256 sharePrice;
-    uint256 fee;
-}
 
 contract MultiWithdrawalController is IWithdrawController, Initializable, AccessControlEnumerable {
     /// @dev Manager role used for access control
@@ -29,9 +19,6 @@ contract MultiWithdrawalController is IWithdrawController, Initializable, Access
     WithdrawalException public withdrawalException;
     uint256 constant ONE_IN_BASIS_POINTS = 10000;
 
-    event FloorChanged(uint256 newFloor);
-    event WithdrawAllowedChanged(bool newWithdrawAllowed, Status portfolioStatus);
-
     modifier onlyManager() {
         require(hasRole(MANAGER_ROLE, msg.sender), "MWC: Only manager");
         _;
@@ -39,11 +26,7 @@ contract MultiWithdrawalController is IWithdrawController, Initializable, Access
 
     constructor() {}
 
-    function initialize(
-        address manager,
-        uint256,
-        uint256 _floor
-    ) external initializer {
+    function initialize(address manager, uint256 _floor) external initializer {
         _grantRole(MANAGER_ROLE, manager);
         withdrawAllowed[Status.Closed] = true;
         floor = _floor;

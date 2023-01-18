@@ -21,41 +21,34 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {AccessControlEnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlEnumerableUpgradeable.sol";
 import {IDepositController} from "./interfaces/IDepositController.sol";
 import {IWithdrawController} from "./interfaces/IWithdrawController.sol";
-import {ITrancheVault, SizeRange, Checkpoint, Configuration} from "./interfaces/ITrancheVault.sol";
+import {ITrancheVault, SizeRange, Checkpoint, Configuration, IProtocolConfig} from "./interfaces/ITrancheVault.sol";
 import {ITransferController} from "./interfaces/ITransferController.sol";
 import {IERC20WithDecimals} from "./interfaces/IERC20WithDecimals.sol";
 import {IStructuredPortfolio, Status, BASIS_PRECISION, YEAR} from "./interfaces/IStructuredPortfolio.sol";
-import {IProtocolConfig} from "./interfaces/IProtocolConfig.sol";
 import {IPausable} from "./interfaces/IPausable.sol";
 import {Upgradeable} from "./proxy/Upgradeable.sol";
 
 contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
     using SafeERC20 for IERC20WithDecimals;
 
-    /// @dev Tranche manager role used for access control
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE"); // 0x241ecf16d79d0f8dbfb92cbc07fe17840425976cf0667f022fe9877caa831b08
 
-    /// @dev Role used to access tranche controllers setters
     bytes32 public constant TRANCHE_CONTROLLER_OWNER_ROLE = keccak256("TRANCHE_CONTROLLER_OWNER_ROLE"); // 0x5b4e632df2edce09667a379f949ff4559a6f6e163b09e2e961c6950a280403b4
 
     IERC20WithDecimals internal token;
+    Checkpoint internal checkpoint;
     IStructuredPortfolio public portfolio;
     IDepositController public depositController;
     IWithdrawController public withdrawController;
     ITransferController public transferController;
     IProtocolConfig public protocolConfig;
     uint256 public waterfallIndex;
-    Checkpoint public checkpoint;
     uint256 public unpaidProtocolFee;
     uint256 public unpaidManagerFee;
     address public managerFeeBeneficiary;
     uint256 public managerFeeRate;
     uint256 public virtualTokenBalance;
     uint256 internal totalAssetsCache;
-
-    event DepositControllerChanged(IDepositController indexed newController);
-    event WithdrawControllerChanged(IWithdrawController indexed newController);
-    event TransferControllerChanged(ITransferController indexed newController);
 
     modifier portfolioNotPaused() {
         require(!IPausable(address(portfolio)).paused(), "TV: Portfolio is paused");
@@ -111,12 +104,12 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         if (totalAssetsCache != 0) {
             return totalAssetsCache;
         }
-        uint256 balance = totalAssetsWithoutFees();
-        uint256 pendingFees = totalPendingFees();
+        uint256 balance = totalAssetsBeforeFees();
+        uint256 pendingFees = totalPendingFeesForAssets(balance);
         return balance > pendingFees ? balance - pendingFees : 0;
     }
 
-    function totalAssetsWithoutFees() public view returns (uint256) {
+    function totalAssetsBeforeFees() public view returns (uint256) {
         if (portfolio.status() == Status.Live) {
             return portfolio.calculateWaterfallForTrancheWithoutFee(waterfallIndex);
         }
@@ -158,7 +151,7 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         return Math.ceilDiv(shares * totalAssets(), _totalSupply);
     }
 
-    function maxDeposit(address receiver) public view returns (uint256) {
+    function _maxDeposit(address receiver) internal view returns (uint256) {
         if (portfolio.status() == Status.Live) {
             if (totalSupply() != 0 && totalAssets() == 0) {
                 return 0;
@@ -168,12 +161,16 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         return depositController.maxDeposit(receiver);
     }
 
+    function maxDeposit(address receiver) external view returns (uint256) {
+        return _min(_maxDeposit(receiver), _maxDepositComplyingWithRatio());
+    }
+
     function previewDeposit(uint256 assets) public view returns (uint256) {
         return depositController.previewDeposit(assets);
     }
 
     function deposit(uint256 amount, address receiver) external cacheTotalAssets portfolioNotPaused returns (uint256) {
-        require(amount <= maxDeposit(msg.sender), "TV: Amount exceeds max deposit");
+        require(amount <= _maxDeposit(receiver), "TV: Amount exceeds max deposit");
         (uint256 shares, uint256 depositFee) = depositController.onDeposit(msg.sender, amount, receiver);
 
         _payDepositFee(depositFee);
@@ -187,6 +184,9 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         uint256 shares,
         address receiver
     ) internal {
+        assert(msg.sender != address(this));
+        assert(msg.sender != address(portfolio));
+        require(amount > 0 && shares > 0, "TV: Amount cannot be zero");
         Status status = portfolio.status();
 
         if (status == Status.Live) {
@@ -205,8 +205,16 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         emit Deposit(msg.sender, receiver, amount, shares);
     }
 
-    function maxMint(address receiver) external view returns (uint256) {
+    function _maxMint(address receiver) internal view returns (uint256) {
         return depositController.maxMint(receiver);
+    }
+
+    function maxMint(address receiver) external view returns (uint256) {
+        uint256 maxRatioLimit = _maxDepositComplyingWithRatio();
+        if (maxRatioLimit == type(uint256).max) {
+            return _maxMint(receiver);
+        }
+        return _min(_maxMint(receiver), previewDeposit(maxRatioLimit));
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
@@ -214,9 +222,8 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
     }
 
     function mint(uint256 shares, address receiver) external cacheTotalAssets portfolioNotPaused returns (uint256) {
+        require(shares <= _maxMint(receiver), "TV: Amount exceeds max mint");
         (uint256 assetAmount, uint256 depositFee) = depositController.onMint(msg.sender, shares, receiver);
-        require(assetAmount > 0, "TV: Cannot deposit 0 assets");
-        require(assetAmount <= maxDeposit(msg.sender), "TV: Exceeds max mint amount");
 
         _payDepositFee(depositFee);
         _depositAssets(assetAmount, shares, receiver);
@@ -224,12 +231,16 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         return assetAmount;
     }
 
-    function maxWithdraw(address owner) public view returns (uint256) {
+    function _maxWithdraw(address owner) public view returns (uint256) {
         if (totalAssets() == 0) {
             return 0;
         }
 
         return withdrawController.maxWithdraw(owner);
+    }
+
+    function maxWithdraw(address owner) external view returns (uint256) {
+        return _min(_maxWithdraw(owner), _maxWithdrawComplyingWithRatio());
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
@@ -241,7 +252,7 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         address receiver,
         address owner
     ) external cacheTotalAssets portfolioNotPaused returns (uint256) {
-        require(assets <= maxWithdraw(owner), "TV: Amount exceeds max withdraw");
+        require(assets <= _maxWithdraw(owner), "TV: Amount exceeds max withdraw");
 
         (uint256 shares, uint256 withdrawFee) = withdrawController.onWithdraw(msg.sender, assets, receiver, owner);
 
@@ -257,6 +268,7 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         address owner,
         address receiver
     ) internal {
+        require(assets > 0 && shares > 0, "TV: Amount cannot be zero");
         _safeBurn(owner, shares);
 
         Status status = portfolio.status();
@@ -274,12 +286,16 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
     }
 
-    function maxRedeem(address owner) public view returns (uint256) {
+    function _maxRedeem(address owner) public view returns (uint256) {
         if (totalAssets() == 0) {
             return 0;
         }
 
         return withdrawController.maxRedeem(owner);
+    }
+
+    function maxRedeem(address owner) external view returns (uint256) {
+        return _min(_maxRedeem(owner), convertToShares(_maxWithdrawComplyingWithRatio()));
     }
 
     function previewRedeem(uint256 shares) public view returns (uint256) {
@@ -291,8 +307,7 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         address receiver,
         address owner
     ) external cacheTotalAssets portfolioNotPaused returns (uint256) {
-        require(shares <= maxRedeem(owner), "TV: Amount exceeds max redeem");
-
+        require(shares <= _maxRedeem(owner), "TV: Amount exceeds max redeem");
         (uint256 assets, uint256 withdrawFee) = withdrawController.onRedeem(msg.sender, shares, receiver, owner);
 
         _payWithdrawFee(withdrawFee);
@@ -346,16 +361,21 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         if (newConfiguration.withdrawController != withdrawController) {
             setWithdrawController(newConfiguration.withdrawController);
         }
+        if (newConfiguration.transferController != transferController) {
+            setTransferController(newConfiguration.transferController);
+        }
     }
 
-    function onPortfolioStart() external returns (uint256) {
+    function onPortfolioStart() external {
+        assert(address(this) != address(portfolio));
         _requirePortfolio();
 
         uint256 balance = virtualTokenBalance;
-        _transferFromTranche(address(portfolio), balance);
-        _updateCheckpoint(balance);
+        virtualTokenBalance = 0;
 
-        return balance;
+        portfolio.increaseVirtualTokenBalance(balance);
+        token.safeTransfer(address(portfolio), balance);
+        _updateCheckpoint(balance);
     }
 
     function onTransfer(uint256 assets) external {
@@ -373,6 +393,70 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         _updateCheckpoint(newTotalAssets);
     }
 
+    function _maxTrancheValueComplyingWithRatio() internal view returns (uint256) {
+        if (portfolio.status() != Status.Live) {
+            return type(uint256).max;
+        }
+
+        if (waterfallIndex == 0) {
+            return type(uint256).max;
+        }
+
+        uint256[] memory waterfallValues = portfolio.calculateWaterfall();
+
+        uint256 subordinateValue = 0;
+        for (uint256 i = 0; i < waterfallIndex; i++) {
+            subordinateValue += waterfallValues[i];
+        }
+
+        uint256 minSubordinateRatio = portfolio.getTrancheData(waterfallIndex).minSubordinateRatio;
+        if (minSubordinateRatio == 0) {
+            return type(uint256).max;
+        }
+
+        return (subordinateValue * BASIS_PRECISION) / minSubordinateRatio;
+    }
+
+    function _maxDepositComplyingWithRatio() internal view returns (uint256) {
+        uint256 maxTrancheValueComplyingWithRatio = _maxTrancheValueComplyingWithRatio();
+        if (maxTrancheValueComplyingWithRatio == type(uint256).max) {
+            return type(uint256).max;
+        }
+        return _saturatingSub(maxTrancheValueComplyingWithRatio, totalAssets());
+    }
+
+    function _minTrancheValueComplyingWithRatio() internal view returns (uint256) {
+        if (portfolio.status() != Status.Live) {
+            return 0;
+        }
+
+        uint256[] memory waterfallValues = portfolio.calculateWaterfall();
+        uint256 tranchesCount = waterfallValues.length;
+        if (waterfallIndex == tranchesCount - 1) {
+            return 0;
+        }
+
+        uint256 subordinateValueWithoutTranche = 0;
+        uint256 maxThreshold = 0;
+        for (uint256 i = 0; i < tranchesCount - 1; i++) {
+            uint256 trancheValue = waterfallValues[i];
+            if (i != waterfallIndex) {
+                subordinateValueWithoutTranche += trancheValue;
+            }
+            if (i >= waterfallIndex) {
+                uint256 lowerBound = (waterfallValues[i + 1] * portfolio.getTrancheData(i + 1).minSubordinateRatio) / BASIS_PRECISION;
+                uint256 minTrancheValue = _saturatingSub(lowerBound, subordinateValueWithoutTranche);
+                maxThreshold = _max(minTrancheValue, maxThreshold);
+            }
+        }
+        return maxThreshold;
+    }
+
+    function _maxWithdrawComplyingWithRatio() internal view returns (uint256) {
+        uint256 minTrancheValueComplyingWithRatio = _minTrancheValueComplyingWithRatio();
+        return _saturatingSub(totalAssets(), minTrancheValueComplyingWithRatio);
+    }
+
     /**
      * @param newTotalAssets Total assets value to save in checkpoint with fees deducted
      */
@@ -381,26 +465,33 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
             return;
         }
 
-        uint256 _pendingProtocolFee = pendingProtocolFee();
-        uint256 _pendingManagerFee = pendingManagerFee();
-
-        _payProtocolFee(_pendingProtocolFee);
-        _payManagerFee(_pendingManagerFee);
+        uint256 _totalAssetsBeforeFees = totalAssetsBeforeFees();
+        _payProtocolFee(_totalAssetsBeforeFees);
+        _payManagerFee(_totalAssetsBeforeFees);
 
         uint256 protocolFeeRate = protocolConfig.protocolFeeRate();
-        checkpoint = Checkpoint({totalAssets: newTotalAssets, protocolFeeRate: protocolFeeRate, timestamp: block.timestamp});
+        uint256 newTotalAssetsWithUnpaidFees = newTotalAssets + unpaidManagerFee + unpaidProtocolFee;
+        checkpoint = Checkpoint({
+            totalAssets: newTotalAssetsWithUnpaidFees,
+            protocolFeeRate: protocolFeeRate,
+            timestamp: block.timestamp
+        });
 
         emit CheckpointUpdated(newTotalAssets, protocolFeeRate);
     }
 
-    function _payProtocolFee(uint256 pendingFee) internal returns (uint256 paidProtocolFee) {
+    function _payProtocolFee(uint256 _totalAssetsBeforeFees) internal {
+        uint256 pendingFee = _pendingProtocolFee(_totalAssetsBeforeFees);
         address protocolAddress = protocolConfig.protocolTreasury();
-        (paidProtocolFee, unpaidProtocolFee) = _payFee(pendingFee, protocolAddress);
+        (uint256 paidProtocolFee, uint256 _unpaidProtocolFee) = _payFee(pendingFee, protocolAddress);
+        unpaidProtocolFee = _unpaidProtocolFee;
         emit ProtocolFeePaid(protocolAddress, paidProtocolFee);
     }
 
-    function _payManagerFee(uint256 pendingFee) internal returns (uint256 paidManagerFee) {
-        (paidManagerFee, unpaidManagerFee) = _payFee(pendingFee, managerFeeBeneficiary);
+    function _payManagerFee(uint256 _totalAssetsBeforeFees) internal {
+        uint256 pendingFee = _pendingManagerFee(_totalAssetsBeforeFees);
+        (uint256 paidManagerFee, uint256 _unpaidManagerFee) = _payFee(pendingFee, managerFeeBeneficiary);
+        unpaidManagerFee = _unpaidManagerFee;
         emit ManagerFeePaid(managerFeeBeneficiary, paidManagerFee);
     }
 
@@ -421,21 +512,16 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
     }
 
     function _transferAssets(address to, uint256 assets) internal {
+        require(to != address(this), "TV: Token transfer to TV");
+        require(to != address(portfolio), "TV: Token transfer to SP");
+
         if (portfolio.status() == Status.Live) {
-            _transferFromPortfolio(to, assets);
+            portfolio.decreaseVirtualTokenBalance(assets);
+            token.safeTransferFrom(address(portfolio), to, assets);
         } else {
-            _transferFromTranche(to, assets);
+            virtualTokenBalance -= assets;
+            token.safeTransfer(to, assets);
         }
-    }
-
-    function _transferFromTranche(address to, uint256 assets) internal {
-        token.safeTransfer(to, assets);
-        virtualTokenBalance -= assets;
-    }
-
-    function _transferFromPortfolio(address to, uint256 assets) internal {
-        token.safeTransferFrom(address(portfolio), to, assets);
-        portfolio.decreaseVirtualTokenBalance(assets);
     }
 
     function _payFee(uint256 fee, address recipient) internal returns (uint256 paidFee, uint256 unpaidFee) {
@@ -443,15 +529,8 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
             return (0, 0);
         }
 
-        if (portfolio.status() == Status.Live) {
-            return _payFeeInLive(recipient, fee);
-        } else {
-            return _payFeeInClosed(recipient, fee);
-        }
-    }
+        uint256 balance = portfolio.status() == Status.Live ? portfolio.virtualTokenBalance() : virtualTokenBalance;
 
-    function _payFeeInLive(address recipient, uint256 fee) internal returns (uint256 paidFee, uint256 unpaidFee) {
-        uint256 balance = portfolio.virtualTokenBalance();
         if (fee > balance) {
             paidFee = balance;
             unpaidFee = fee - balance;
@@ -460,71 +539,69 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
             unpaidFee = 0;
         }
 
-        _transferFromPortfolio(recipient, paidFee);
+        _transferAssets(recipient, paidFee);
     }
 
-    function _payFeeInClosed(address recipient, uint256 fee) internal returns (uint256 paidFee, uint256 unpaidFee) {
-        uint256 balance = virtualTokenBalance;
-        if (fee > balance) {
-            paidFee = balance;
-            unpaidFee = fee - balance;
-        } else {
-            paidFee = fee;
-            unpaidFee = 0;
-        }
-
-        _transferFromTranche(recipient, paidFee);
+    function totalPendingFees() external view returns (uint256) {
+        return totalPendingFeesForAssets(totalAssetsBeforeFees());
     }
 
-    function totalPendingFees() public view returns (uint256) {
-        return pendingProtocolFee() + pendingManagerFee();
+    function totalPendingFeesForAssets(uint256 _totalAssetsBeforeFees) public view returns (uint256) {
+        return _pendingProtocolFee(_totalAssetsBeforeFees) + _pendingManagerFee(_totalAssetsBeforeFees);
     }
 
-    function pendingProtocolFee() public view returns (uint256) {
-        return _accruedProtocolFee() + unpaidProtocolFee;
+    function pendingProtocolFee() external view returns (uint256) {
+        return _pendingProtocolFee(totalAssetsBeforeFees());
     }
 
-    function pendingManagerFee() public view returns (uint256) {
-        return _accruedManagerFee() + unpaidManagerFee;
+    function _pendingProtocolFee(uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
+        return _accruedProtocolFee(_totalAssetsBeforeFees) + unpaidProtocolFee;
     }
 
-    function totalAccruedFees() external view returns (uint256) {
-        return _accruedProtocolFee() + _accruedManagerFee();
+    function pendingManagerFee() external view returns (uint256) {
+        return _pendingManagerFee(totalAssetsBeforeFees());
     }
 
-    function _accruedProtocolFee() internal view returns (uint256) {
-        return _accruedFee(checkpoint.protocolFeeRate);
+    function _pendingManagerFee(uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
+        return _accruedManagerFee(_totalAssetsBeforeFees) + unpaidManagerFee;
     }
 
-    function _accruedManagerFee() internal view returns (uint256) {
+    function _accruedProtocolFee(uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
+        return _accruedFee(checkpoint.protocolFeeRate, _totalAssetsBeforeFees);
+    }
+
+    function _accruedManagerFee(uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
         if (portfolio.status() != Status.Live) {
             return 0;
         }
-        return _accruedFee(managerFeeRate);
+        return _accruedFee(managerFeeRate, _totalAssetsBeforeFees);
     }
 
-    function _accruedFee(uint256 feeRate) internal view returns (uint256) {
+    function _accruedFee(uint256 feeRate, uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
         if (checkpoint.timestamp == 0) {
             return 0;
         }
-        uint256 adjustedTotalAssets = (block.timestamp - checkpoint.timestamp) * totalAssetsWithoutFees();
+        uint256 adjustedTotalAssets = (block.timestamp - checkpoint.timestamp) * _totalAssetsBeforeFees;
         return (adjustedTotalAssets * feeRate) / YEAR / BASIS_PRECISION;
     }
 
     function setDepositController(IDepositController newController) public {
         _requireTrancheControllerOwnerRole();
+        _requireNonZeroAddress(address(newController));
         depositController = newController;
         emit DepositControllerChanged(newController);
     }
 
     function setWithdrawController(IWithdrawController newController) public {
         _requireTrancheControllerOwnerRole();
+        _requireNonZeroAddress(address(newController));
         withdrawController = newController;
         emit WithdrawControllerChanged(newController);
     }
 
     function setTransferController(ITransferController newController) public {
         _requireTrancheControllerOwnerRole();
+        _requireNonZeroAddress(address(newController));
         transferController = newController;
         emit TransferControllerChanged(newController);
     }
@@ -540,11 +617,22 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
 
     function setManagerFeeBeneficiary(address _managerFeeBeneficiary) public {
         _requireManagerRole();
-        _updateCheckpoint(totalAssets());
+        _requireNonZeroAddress(_managerFeeBeneficiary);
+        require(address(this) != _managerFeeBeneficiary, "TV: Cannot be TV address");
 
         managerFeeBeneficiary = _managerFeeBeneficiary;
+        _updateCheckpoint(totalAssets());
 
         emit ManagerFeeBeneficiaryChanged(_managerFeeBeneficiary);
+    }
+
+    function setPortfolio(IStructuredPortfolio _portfolio) external {
+        require(address(portfolio) == address(0), "TV: Portfolio already set");
+        portfolio = _portfolio;
+    }
+
+    function _requireNonZeroAddress(address _address) internal pure {
+        require(_address != address(0), "TV: Cannot be zero address");
     }
 
     function _requireManagerRole() internal view {
@@ -555,17 +643,8 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         require(hasRole(TRANCHE_CONTROLLER_OWNER_ROLE, msg.sender), "TV: Only tranche controller owner");
     }
 
-    function _requirePortfolioOrManager() internal view {
-        require(msg.sender == address(portfolio) || hasRole(MANAGER_ROLE, msg.sender), "TV: Only portfolio or manager");
-    }
-
     function _requirePortfolio() internal view {
         require(msg.sender == address(portfolio), "TV: Sender is not portfolio");
-    }
-
-    function setPortfolio(IStructuredPortfolio _portfolio) external {
-        require(address(portfolio) == address(0), "TV: Portfolio already set");
-        portfolio = _portfolio;
     }
 
     function _safeBurn(address owner, uint256 shares) internal {
@@ -578,5 +657,17 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         require(sharesAllowance >= shares, "TV: Insufficient allowance");
         _burn(owner, shares);
         _approve(owner, msg.sender, sharesAllowance - shares);
+    }
+
+    function _max(uint256 x, uint256 y) internal pure returns (uint256) {
+        return x < y ? y : x;
+    }
+
+    function _min(uint256 x, uint256 y) internal pure returns (uint256) {
+        return x > y ? y : x;
+    }
+
+    function _saturatingSub(uint256 x, uint256 y) internal pure returns (uint256) {
+        return x > y ? x - y : 0;
     }
 }

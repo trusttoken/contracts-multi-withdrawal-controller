@@ -11,14 +11,16 @@
 
 pragma solidity ^0.8.16;
 
-/**
- * @title Contract used for checking whether given address is allowed to put funds into an instrument according to implemented strategy
- * @dev Used by DepositController
- */
-interface ILenderVerifier {
-    /**
-     * @param lender Address of lender to verify
-     * @return Value indicating whether given lender address is allowed to put funds into an instrument or not
-     */
-    function isAllowed(address lender) external view returns (bool);
+import {ILenderVerifier} from "../interfaces/ILenderVerifier.sol";
+
+contract MockLenderVerifier is ILenderVerifier {
+    mapping(address => bool) public isBlacklisted;
+
+    function isAllowed(address receiver) external view returns (bool) {
+        return !isBlacklisted[receiver];
+    }
+
+    function setIsBlacklisted(address receiver, bool _isBlacklisted) external {
+        isBlacklisted[receiver] = _isBlacklisted;
+    }
 }

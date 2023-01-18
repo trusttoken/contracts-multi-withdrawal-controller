@@ -16,7 +16,7 @@ import {Upgradeable} from "./proxy/Upgradeable.sol";
 
 struct CustomFeeRate {
     bool isSet;
-    uint256 feeRate;
+    uint16 feeRate;
 }
 
 contract ProtocolConfig is Upgradeable, IProtocolConfig {
@@ -27,20 +27,13 @@ contract ProtocolConfig is Upgradeable, IProtocolConfig {
 
     mapping(address => CustomFeeRate) internal customFeeRates;
 
-    event DefaultProtocolFeeRateChanged(uint256 newProtocolFeeRate);
-    event CustomProtocolFeeRateChanged(address contractAddress, uint256 newProtocolFeeRate);
-    event CustomProtocolFeeRateRemoved(address contractAddress);
-    event ProtocolAdminChanged(address indexed newProtocolAdmin);
-    event ProtocolTreasuryChanged(address indexed newProtocolTreasury);
-    event PauserAddressChanged(address indexed newPauserAddress);
-
     function initialize(
         uint256 _defaultProtocolFeeRate,
         address _protocolAdmin,
         address _protocolTreasury,
         address _pauserAddress
     ) external initializer {
-        __Upgradeable_init(msg.sender, msg.sender);
+        __Upgradeable_init(msg.sender, _pauserAddress);
         defaultProtocolFeeRate = _defaultProtocolFeeRate;
         protocolAdmin = _protocolAdmin;
         protocolTreasury = _protocolTreasury;
@@ -60,7 +53,7 @@ contract ProtocolConfig is Upgradeable, IProtocolConfig {
         return customFeeRate.isSet ? customFeeRate.feeRate : defaultProtocolFeeRate;
     }
 
-    function setCustomProtocolFeeRate(address contractAddress, uint256 newFeeRate) external {
+    function setCustomProtocolFeeRate(address contractAddress, uint16 newFeeRate) external {
         _requireDefaultAdminRole();
 
         CustomFeeRate memory customFeeRate = customFeeRates[contractAddress];

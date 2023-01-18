@@ -1,23 +1,19 @@
-// SPDX-License-Identifier: BUSL-1.1
-// Business Source License 1.1
-// License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved. "Business Source License" is a trademark of MariaDB Corporation Ab.
-
-// Parameters
-// Licensor: TrueFi Foundation Ltd.
-// Licensed Work: Structured Credit Vaults. The Licensed Work is (c) 2022 TrueFi Foundation Ltd.
-// Additional Use Grant: Any uses listed and defined at this [LICENSE](https://github.com/trusttoken/contracts-carbon/license.md)
-// Change Date: December 31, 2025
-// Change License: MIT
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.16;
 
-import {Status} from "../interfaces/IStructuredPortfolio.sol";
+import {Status} from "../carbon/interfaces/IStructuredPortfolio.sol";
+import {WithdrawAllowed} from "../carbon/interfaces/IWithdrawController.sol";
 
-struct WithdrawAllowed {
-    /// @dev StructuredPortfolio status for which withdrawals should be enabled or disabled
-    Status status;
-    /// @dev Value indicating whether withdrawals should be enabled or disabled
-    bool value;
+struct WithdrawalException {
+    /// @dev Lender's address
+    address lender;
+    /// @dev Amount of shares that should be redeemed for given lender
+    uint256 shareAmount;
+    /// @dev Price of single share (in BPS)
+    uint256 sharePrice;
+    /// @dev Withdrawal fee (in BPS)
+    uint256 fee;
 }
 
 /**
@@ -38,20 +34,11 @@ interface IWithdrawController {
      */
     event WithdrawAllowedChanged(bool newWithdrawAllowed, Status portfolioStatus);
 
-    /**
-     * @notice Event emitted when withdraw fee rate is switched
-     * @param newFeeRate New withdraw fee rate value (in BPS)
-     */
-    event WithdrawFeeRateChanged(uint256 newFeeRate);
-
     /// @return WithdrawController manager role used for access control
     function MANAGER_ROLE() external view returns (bytes32);
 
-    /// @return Min assets amount that needs to stay in TrancheVault interracting with WithdrawController when related StructuredPortfolio is not in Closed state
+    /// @return Min assets amount that needs to stay in TrancheVault interacting with WithdrawController when related StructuredPortfolio is not in Closed state
     function floor() external view returns (uint256);
-
-    /// @return Rate (in BPS) of the fee applied to the withdraw amount
-    function withdrawFeeRate() external view returns (uint256);
 
     /// @return Value indicating whether withdrawals are allowed when related StructuredPortfolio is in given status
     /// @param status StructuredPortfolio status
@@ -61,14 +48,17 @@ interface IWithdrawController {
      * @notice Setup contract with given params
      * @dev Used by Initializable contract (can be called only once)
      * @param manager Address to which MANAGER_ROLE should be granted
-     * @param withdrawFeeRate Withdraw fee rate (in BPS)
      * @param floor Floor value
      */
-    function initialize(
-        address manager,
-        uint256 withdrawFeeRate,
-        uint256 floor
-    ) external;
+    function initialize(address manager, uint256 floor) external;
+
+    /**
+     * @notice Redeems funds for multiple lenders
+     * @dev Can be executed only by WithdrawController manager
+     * @param vault TrancheVault address on which redeem function should be called
+     * @param exceptions Array of withdrawal exceptions
+     */
+    function multiRedeem(address vault, WithdrawalException[] memory exceptions) external;
 
     /**
      * @return assets Max assets amount that can be withdrawn from TrancheVault for shares of given owner
@@ -142,20 +132,9 @@ interface IWithdrawController {
     function setWithdrawAllowed(bool newWithdrawAllowed, Status portfolioStatus) external;
 
     /**
-     * @notice Withdraw fee rate setter
-     * @param newFeeRate New withdraw fee rate (in BPS)
-     */
-    function setWithdrawFeeRate(uint256 newFeeRate) external;
-
-    /**
      * @notice Allows to change floor, withdraw fee rate and enable or disable withdrawals at once
      * @param newFloor New floor value
-     * @param newFeeRate New withdraw fee rate (in BPS)
      * @param newWithdrawAllowed New withdraw allowed settings
      */
-    function configure(
-        uint256 newFloor,
-        uint256 newFeeRate,
-        WithdrawAllowed memory newWithdrawAllowed
-    ) external;
+    function configure(uint256 newFloor, WithdrawAllowed memory newWithdrawAllowed) external;
 }

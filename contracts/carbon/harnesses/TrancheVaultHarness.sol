@@ -11,14 +11,19 @@
 
 pragma solidity ^0.8.16;
 
-/**
- * @title Contract used for checking whether given address is allowed to put funds into an instrument according to implemented strategy
- * @dev Used by DepositController
- */
-interface ILenderVerifier {
-    /**
-     * @param lender Address of lender to verify
-     * @return Value indicating whether given lender address is allowed to put funds into an instrument or not
-     */
-    function isAllowed(address lender) external view returns (bool);
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20WithDecimals} from "../interfaces/IERC20WithDecimals.sol";
+import {TrancheVault} from "../TrancheVault.sol";
+
+contract TrancheVaultHarness is TrancheVault {
+    using SafeERC20 for IERC20WithDecimals;
+
+    function tokenTransferHarness(
+        address from,
+        address to,
+        uint256 amount
+    ) external {
+        require(from != address(this) && from != address(portfolio));
+        token.safeTransferFrom(from, to, amount);
+    }
 }
