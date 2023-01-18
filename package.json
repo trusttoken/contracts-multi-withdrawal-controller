@@ -8,7 +8,7 @@
     "build:typechain": "typechain --target ethers-v5 --out-dir build/types 'build/*.json'",
     "build": "pnpm clean && pnpm build:hardhat && pnpm build:typechain",
     "clean": "rm -rf ./build && hardhat clean",
-    "lint:prettier": "prettier './{contracts,test,features}/**/*.{ts,sol}'",
+    "lint:prettier": "prettier './{contracts,test,features}/**/*.{ts,sol}' --cache",
     "lint:sol": "solhint 'contracts/**/*.sol'",
     "lint:ts": "eslint '{test,features}/**/*.ts' --cache",
     "lint:fix": "pnpm run lint:prettier --write --loglevel error && pnpm run lint:sol --fix && pnpm run lint:ts --fix",
