@@ -8,8 +8,6 @@ import {
   StructuredPortfolioTest__factory,
   TrancheVaultTest,
   TrancheVaultTest__factory,
-  WithdrawController,
-  WithdrawController__factory,
 } from 'build/types'
 import { BigNumberish, BytesLike, constants, Contract, ContractTransaction, utils, Wallet } from 'ethers'
 import { YEAR, DAY } from 'utils/constants'
@@ -182,12 +180,12 @@ export const getStructuredPortfolioFactoryFixture = (tokenDecimals: number) => {
     async function createPortfolioAndSetupControllers(...args: Parameters<typeof createPortfolio>) {
       const { portfolio, createPortfolioTx } = await createPortfolio(...args)
       const tranches = await getTranchesFromTx(createPortfolioTx)
-      const controllers: { depositController: DepositController; withdrawController: WithdrawController }[] = []
+      const controllers: { depositController: DepositController; withdrawController: MultiWithdrawalController }[] = []
       for (let i = 0; i < tranches.length; i++) {
         const depositControllerAddress = await tranches[i].depositController()
         const withdrawControllerAddress = await tranches[i].withdrawController()
         const depositController = DepositController__factory.connect(depositControllerAddress, wallet)
-        const withdrawController = WithdrawController__factory.connect(withdrawControllerAddress, wallet)
+        const withdrawController = MultiWithdrawalController__factory.connect(withdrawControllerAddress, wallet)
         controllers.push({ depositController, withdrawController })
       }
       return { portfolio, tranches, createPortfolioTx, controllers }

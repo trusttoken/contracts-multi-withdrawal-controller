@@ -1,3 +1,4 @@
+export * from './balance'
 export * from './constants'
 export * from './extractArgFromTx'
 export * from './parseUSDC'
