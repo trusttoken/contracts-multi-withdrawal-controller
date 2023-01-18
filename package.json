@@ -1,5 +1,5 @@
 {
-  "name": "@aip/spike-multi-withdrawal-controller",
+  "name": "@aip/multi-withdrawal-controller",
   "version": "0.0.1",
   "private": true,
   "scripts": {
