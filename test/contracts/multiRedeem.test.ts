@@ -3,6 +3,7 @@ import { WithdrawalExceptionStruct } from 'contracts/MultiWithdrawalController'
 import { PortfolioStatus, structuredPortfolioLiveFixture } from 'fixtures/structuredPortfolioFixture'
 import { setupFixtureLoader } from 'test/setup'
 import { expect } from 'chai'
+import { AddressZero, Zero } from '@ethersproject/constants'
 
 describe('MultiWithdrawalController.multiRedeem', () => {
   const fixtureLoader = setupFixtureLoader()
@@ -55,6 +56,67 @@ describe('MultiWithdrawalController.multiRedeem', () => {
     const shareBalancesAfter = await getBalances(equityTranche, other)
     verifyBalances(tokenBalancesBefore, tokenBalancesAfter, [parseUSDC(45)])
     verifyBalances(shareBalancesBefore, shareBalancesAfter, [parseUSDC(50)])
+  })
+
+  it('removes withdrawal exception after execution', async () => {
+    const { equityTranche, equityTrancheData, other, depositAndApproveToTranche } = await loadFixture()
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
+
+    const exceptions: WithdrawalExceptionStruct[] = [
+      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50) },
+    ]
+    await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
+
+    const exception = await equityTrancheData.withdrawController.withdrawalException()
+    expect(exception.lender).to.eq(AddressZero)
+    expect(exception.fee).to.eq(Zero)
+    expect(exception.sharePrice).to.eq(Zero)
+    expect(exception.shareAmount).to.eq(Zero)
+  })
+
+  it('reverts when share price in withdrawal exception is zero', async () => {
+    const { equityTranche, equityTrancheData, other, depositAndApproveToTranche } = await loadFixture()
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
+
+    const exceptions: WithdrawalExceptionStruct[] = [
+      { lender: other.address, sharePrice: Zero, fee: parseBPS(10), shareAmount: parseUSDC(50) },
+    ]
+    await expect(
+      equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions),
+    ).to.be.revertedWith('TV: Amount cannot be zero')
+  })
+
+  it('reverts when share amount in withdrawal exception is zero', async () => {
+    const { equityTranche, equityTrancheData, other, depositAndApproveToTranche } = await loadFixture()
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
+
+    const exceptions: WithdrawalExceptionStruct[] = [
+      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(10), shareAmount: Zero },
+    ]
+    await expect(
+      equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions),
+    ).to.be.revertedWith('TV: Amount cannot be zero')
+  })
+
+  it('reverts when withdrawal exception array is empty', async () => {
+    const { equityTranche, equityTrancheData, other, depositAndApproveToTranche } = await loadFixture()
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
+
+    await expect(equityTrancheData.withdrawController.multiRedeem(equityTranche.address, [])).to.be.revertedWith(
+      'MWC: Exceptions array cannot be empty',
+    )
+  })
+
+  it('reverts when called by lender', async () => {
+    const { equityTranche, equityTrancheData, other, depositAndApproveToTranche } = await loadFixture()
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
+
+    const exceptions: WithdrawalExceptionStruct[] = [
+      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50) },
+    ]
+    await expect(
+      equityTrancheData.withdrawController.connect(other).multiRedeem(equityTranche.address, exceptions),
+    ).to.be.revertedWith('MWC: Only manager')
   })
 
   describe('when a floor is configured', () => {

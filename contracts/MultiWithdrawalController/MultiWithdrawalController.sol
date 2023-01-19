@@ -14,7 +14,6 @@ contract MultiWithdrawalController is IWithdrawController, Initializable, Access
     /// @dev Manager role used for access control
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     uint256 public floor;
-    uint256 public withdrawFeeRate;
     mapping(Status => bool) public withdrawAllowed;
     WithdrawalException public withdrawalException;
     uint256 constant ONE_IN_BASIS_POINTS = 10000;
@@ -33,8 +32,10 @@ contract MultiWithdrawalController is IWithdrawController, Initializable, Access
     }
 
     function multiRedeem(address vault, WithdrawalException[] memory exceptions) external onlyManager {
+        require(exceptions.length > 0, "MWC: Exceptions array cannot be empty");
         ITrancheVault trancheVault = ITrancheVault(vault);
         require(!withdrawAllowed[trancheVault.portfolio().status()], "MWC: Only available when redemptions are disabled for lenders");
+
         for (uint256 i = 0; i < exceptions.length; i++) {
             withdrawalException = exceptions[i];
             trancheVault.redeem(exceptions[i].shareAmount, exceptions[i].lender, exceptions[i].lender);
