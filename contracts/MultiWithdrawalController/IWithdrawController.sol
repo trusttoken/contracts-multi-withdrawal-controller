@@ -5,9 +5,16 @@ pragma solidity ^0.8.16;
 import {Status} from "../carbon/interfaces/IStructuredPortfolio.sol";
 import {WithdrawAllowed} from "../carbon/interfaces/IWithdrawController.sol";
 
+enum WithdrawType {
+    Interest,
+    Principal
+}
+
 struct WithdrawalException {
     /// @dev Lender's address
     address lender;
+    /// @dev Type of withdrawal
+    WithdrawType withdrawType;
     /// @dev Amount of shares that should be redeemed for given lender
     uint256 shareAmount;
     /// @dev Price of single share (in BPS)
@@ -33,6 +40,15 @@ interface IWithdrawController {
      * @param portfolioStatus StructuredPortfolio status for which changes are applied
      */
     event WithdrawAllowedChanged(bool newWithdrawAllowed, Status portfolioStatus);
+
+    /**
+     * @notice Event emitted when redemption is executed by multiRedeem function
+     * @param owner Address of shares owner
+     * @param withdrawType Type of withdrawal
+     * @param assets Number of assets that should be redeemed
+     * @param shares Number of shares that should be burned
+     */
+    event Redeem(address owner, WithdrawType withdrawType, uint256 assets, uint256 shares);
 
     /// @return WithdrawController manager role used for access control
     function MANAGER_ROLE() external view returns (bytes32);

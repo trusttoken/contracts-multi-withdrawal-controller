@@ -21,6 +21,11 @@ export enum PortfolioStatus {
   Closed,
 }
 
+export enum WithdrawType {
+  Interest,
+  Principal,
+}
+
 const getStructuredPortfolioFixture = (tokenDecimals: number) => {
   return async ([wallet, other, ...rest]: Wallet[], provider: MockProvider) => {
     const factoryFixtureResult = await getStructuredPortfolioFactoryFixture(tokenDecimals)([wallet, other, ...rest])

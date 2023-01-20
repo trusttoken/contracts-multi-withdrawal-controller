@@ -1,6 +1,6 @@
 import { getBalances, parseBPS, parseUSDC, timeTravelTo, verifyBalances } from 'utils'
 import { WithdrawalExceptionStruct } from 'contracts/MultiWithdrawalController'
-import { PortfolioStatus, structuredPortfolioLiveFixture } from 'fixtures/structuredPortfolioFixture'
+import { PortfolioStatus, structuredPortfolioLiveFixture, WithdrawType } from 'fixtures/structuredPortfolioFixture'
 import { setupFixtureLoader } from 'test/setup'
 import { expect } from 'chai'
 import { AddressZero, Zero } from '@ethersproject/constants'
@@ -8,6 +8,7 @@ import { AddressZero, Zero } from '@ethersproject/constants'
 describe('MultiWithdrawalController.multiRedeem', () => {
   const fixtureLoader = setupFixtureLoader()
   const loadFixture = () => fixtureLoader(structuredPortfolioLiveFixture)
+  const withdrawType = WithdrawType.Interest
 
   it('withdraws funds for single lender', async () => {
     const { equityTranche, equityTrancheData, token, other, depositAndApproveToTranche } = await loadFixture()
@@ -16,7 +17,7 @@ describe('MultiWithdrawalController.multiRedeem', () => {
     const balancesBefore = await getBalances(token, other)
 
     const exceptions: WithdrawalExceptionStruct[] = [
-      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50) },
+      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50), withdrawType },
     ]
     await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
 
@@ -31,8 +32,14 @@ describe('MultiWithdrawalController.multiRedeem', () => {
     const balancesBefore = await getBalances(token, other, another)
 
     const exceptions: WithdrawalExceptionStruct[] = [
-      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50) },
-      { lender: another.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50) },
+      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50), withdrawType },
+      {
+        lender: another.address,
+        sharePrice: parseBPS(100),
+        fee: parseBPS(0),
+        shareAmount: parseUSDC(50),
+        withdrawType,
+      },
     ]
     await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
 
@@ -48,7 +55,7 @@ describe('MultiWithdrawalController.multiRedeem', () => {
     const shareBalancesBefore = await getBalances(equityTranche, other)
 
     const exceptions: WithdrawalExceptionStruct[] = [
-      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(10), shareAmount: parseUSDC(50) },
+      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(10), shareAmount: parseUSDC(50), withdrawType },
     ]
     await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
 
@@ -63,7 +70,7 @@ describe('MultiWithdrawalController.multiRedeem', () => {
     await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
 
     const exceptions: WithdrawalExceptionStruct[] = [
-      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50) },
+      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50), withdrawType },
     ]
     await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
 
@@ -74,12 +81,34 @@ describe('MultiWithdrawalController.multiRedeem', () => {
     expect(exception.shareAmount).to.eq(Zero)
   })
 
+  it('emits event for each redemption', async () => {
+    const { equityTranche, equityTrancheData, other, another, depositAndApproveToTranche } = await loadFixture()
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), another)
+
+    const exceptions: WithdrawalExceptionStruct[] = [
+      {
+        lender: other.address,
+        sharePrice: parseBPS(20),
+        fee: Zero,
+        shareAmount: parseUSDC(40),
+        withdrawType: WithdrawType.Principal,
+      },
+      { lender: another.address, sharePrice: parseBPS(10), fee: Zero, shareAmount: parseUSDC(50), withdrawType },
+    ]
+    await expect(equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions))
+      .to.emit(equityTrancheData.withdrawController, 'Redeem')
+      .withArgs(exceptions[0].lender, exceptions[0].withdrawType, parseUSDC(8), exceptions[0].shareAmount)
+      .to.emit(equityTrancheData.withdrawController, 'Redeem')
+      .withArgs(exceptions[1].lender, exceptions[1].withdrawType, parseUSDC(5), exceptions[1].shareAmount)
+  })
+
   it('reverts when share price in withdrawal exception is zero', async () => {
     const { equityTranche, equityTrancheData, other, depositAndApproveToTranche } = await loadFixture()
     await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
 
     const exceptions: WithdrawalExceptionStruct[] = [
-      { lender: other.address, sharePrice: Zero, fee: parseBPS(10), shareAmount: parseUSDC(50) },
+      { lender: other.address, sharePrice: Zero, fee: parseBPS(10), shareAmount: parseUSDC(50), withdrawType },
     ]
     await expect(
       equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions),
@@ -91,7 +120,7 @@ describe('MultiWithdrawalController.multiRedeem', () => {
     await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
 
     const exceptions: WithdrawalExceptionStruct[] = [
-      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(10), shareAmount: Zero },
+      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(10), shareAmount: Zero, withdrawType },
     ]
     await expect(
       equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions),
@@ -112,7 +141,7 @@ describe('MultiWithdrawalController.multiRedeem', () => {
     await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
 
     const exceptions: WithdrawalExceptionStruct[] = [
-      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50) },
+      { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50), withdrawType },
     ]
     await expect(
       equityTrancheData.withdrawController.connect(other).multiRedeem(equityTranche.address, exceptions),
@@ -126,7 +155,13 @@ describe('MultiWithdrawalController.multiRedeem', () => {
       await equityTrancheData.withdrawController.setFloor(equity.initialDeposit.add(parseUSDC(120)))
 
       const exceptions: WithdrawalExceptionStruct[] = [
-        { lender: other.address, sharePrice: parseBPS(400), fee: parseBPS(10), shareAmount: parseUSDC(20.1) },
+        {
+          lender: other.address,
+          sharePrice: parseBPS(400),
+          fee: parseBPS(10),
+          shareAmount: parseUSDC(20),
+          withdrawType,
+        },
       ]
       await expect(
         equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions),
@@ -141,7 +176,13 @@ describe('MultiWithdrawalController.multiRedeem', () => {
       const tokenBalancesBefore = await getBalances(token, other)
 
       const exceptions: WithdrawalExceptionStruct[] = [
-        { lender: other.address, sharePrice: parseBPS(400), fee: parseBPS(10), shareAmount: parseUSDC(20) },
+        {
+          lender: other.address,
+          sharePrice: parseBPS(400),
+          fee: parseBPS(10),
+          shareAmount: parseUSDC(20),
+          withdrawType,
+        },
       ]
       await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
 
@@ -158,7 +199,13 @@ describe('MultiWithdrawalController.multiRedeem', () => {
       await equityTrancheData.withdrawController.setWithdrawAllowed(true, PortfolioStatus.Live)
 
       const exceptions: WithdrawalExceptionStruct[] = [
-        { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50) },
+        {
+          lender: other.address,
+          sharePrice: parseBPS(100),
+          fee: parseBPS(0),
+          shareAmount: parseUSDC(50),
+          withdrawType,
+        },
       ]
       await expect(equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)).to.revertedWith(
         'MWC: Only available when redemptions are disabled for lenders',
@@ -182,7 +229,13 @@ describe('MultiWithdrawalController.multiRedeem', () => {
       const balancesBefore = await getBalances(token, other)
 
       const exceptions: WithdrawalExceptionStruct[] = [
-        { lender: other.address, sharePrice: parseBPS(100), fee: parseBPS(0), shareAmount: parseUSDC(50) },
+        {
+          lender: other.address,
+          sharePrice: parseBPS(100),
+          fee: parseBPS(0),
+          shareAmount: parseUSDC(50),
+          withdrawType,
+        },
       ]
       await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
 

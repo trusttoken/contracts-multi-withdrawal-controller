@@ -114,20 +114,21 @@ contract MultiWithdrawalController is IWithdrawController, Initializable, Access
         uint256 shares,
         address,
         address owner
-    ) external view returns (uint256 assets, uint256 fee) {
+    ) external returns (uint256 assets, uint256 fee) {
         ITrancheVault vault = ITrancheVault(msg.sender);
 
         Status status = vault.portfolio().status();
         if (withdrawAllowed[status]) {
-            assets = previewRedeem(shares);
-        } else {
-            require(sender == address(this), "MWC: Only controller can withdraw based on exception");
-            WithdrawalException memory exception = _getExceptionForWithdrawal(owner);
-            assert(shares == exception.shareAmount);
-            (assets, fee) = _calculateExceptionRedeem(shares, exception.sharePrice, exception.fee);
+            return (previewRedeem(shares), 0);
         }
 
+        require(sender == address(this), "MWC: Only controller can withdraw based on exception");
+        WithdrawalException memory exception = _getExceptionForWithdrawal(owner);
+        assert(shares == exception.shareAmount);
+        (assets, fee) = _calculateExceptionRedeem(shares, exception.sharePrice, exception.fee);
         _ensureFloorRemains(vault, status, assets + fee);
+
+        emit Redeem(owner, exception.withdrawType, assets, shares);
     }
 
     function _ensureFloorRemains(

@@ -3,7 +3,7 @@ import { setupFixtureLoader } from '../setup'
 import { WithdrawalExceptionStruct } from 'contracts/MultiWithdrawalController'
 import { expect } from 'chai'
 import { BigNumber, Wallet } from 'ethers'
-import { structuredPortfolioFixture } from 'fixtures/structuredPortfolioFixture'
+import { structuredPortfolioFixture, WithdrawType } from 'fixtures/structuredPortfolioFixture'
 import { Loan } from 'fixtures/setupLoansManagerHelpers'
 import { TrancheVault } from 'contracts'
 
@@ -48,6 +48,7 @@ describe('e2e', () => {
           sharePrice: parseBPS(125),
           fee: interestWithdrawalFee,
           shareAmount: await equityTranche.convertToShares(parseUSDC(25)),
+          withdrawType: WithdrawType.Interest,
         },
       ]
       await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
@@ -95,6 +96,7 @@ describe('e2e', () => {
           sharePrice: parseBPS(125),
           fee: principalWithdrawalFee,
           shareAmount: await equityTranche.convertToShares(parseUSDC(100)),
+          withdrawType: WithdrawType.Principal,
         },
       ]
       await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
@@ -138,12 +140,14 @@ describe('e2e', () => {
         sharePrice: parseBPS(104),
         fee: interestWithdrawalFee,
         shareAmount: await equityTranche.convertToShares(parseUSDC(4)),
+        withdrawType: WithdrawType.Interest,
       },
       {
         lender: other.address,
         sharePrice: parseBPS(104),
         fee: interestWithdrawalFee,
         shareAmount: await equityTranche.convertToShares(parseUSDC(16)),
+        withdrawType: WithdrawType.Interest,
       },
     ]
     await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
@@ -184,12 +188,14 @@ describe('e2e', () => {
         sharePrice: parseBPS(104),
         fee: principalWithdrawalFee,
         shareAmount: await equityTranche.convertToShares(parseUSDC(100)),
+        withdrawType: WithdrawType.Principal,
       },
       {
         lender: other.address,
         sharePrice: parseBPS(104),
         fee: principalWithdrawalFee,
         shareAmount: await equityTranche.convertToShares(parseUSDC(400)),
+        withdrawType: WithdrawType.Principal,
       },
     ]
     await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
