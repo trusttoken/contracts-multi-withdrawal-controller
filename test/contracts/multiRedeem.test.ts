@@ -165,7 +165,7 @@ describe('MultiWithdrawalController.multiRedeem', () => {
       ]
       await expect(
         equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions),
-      ).to.be.revertedWith('TV: Amount exceeds max redeem')
+      ).to.be.revertedWith('MWC: Remaining amount below floor')
     })
 
     it('calculates redemption amount factoring in floor, fee and share price', async () => {
@@ -188,6 +188,38 @@ describe('MultiWithdrawalController.multiRedeem', () => {
 
       const tokenBalancesAfter = await getBalances(token, other)
       verifyBalances(tokenBalancesBefore, tokenBalancesAfter, [parseUSDC(72)])
+    })
+
+    it('reverts if share price causes redemption to go below floor', async () => {
+      const { equityTranche, equityTrancheData, equity, other, depositAndApproveToTranche } = await loadFixture()
+      await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
+      await equityTrancheData.withdrawController.setFloor(equity.initialDeposit.add(parseUSDC(50)))
+
+      const exceptions: WithdrawalExceptionStruct[] = [
+        {
+          lender: other.address,
+          sharePrice: parseBPS(200),
+          fee: parseBPS(10),
+          shareAmount: parseUSDC(49),
+          withdrawType,
+        },
+      ]
+      await expect(
+        equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions),
+      ).to.be.revertedWith('MWC: Remaining amount below floor')
+    })
+
+    it('does not revert if small share price takes a redemption above floor', async () => {
+      const { equityTranche, equityTrancheData, equity, other, token, depositAndApproveToTranche } = await loadFixture()
+      await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
+      await equityTrancheData.withdrawController.setFloor(equity.initialDeposit.add(parseUSDC(60)))
+
+      const exceptions: WithdrawalExceptionStruct[] = [
+        { lender: other.address, sharePrice: parseBPS(50), fee: Zero, shareAmount: parseUSDC(60), withdrawType },
+      ]
+      const balanceBefore = await getBalances(token, other)
+      await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
+      verifyBalances(balanceBefore, await getBalances(token, other), [parseUSDC(30)])
     })
   })
 

@@ -15,7 +15,8 @@
     "lint": "pnpm run lint:sol && pnpm run lint:prettier --check --loglevel error && pnpm run lint:ts",
     "test:unit": "mocha 'test/**/*.test.ts'",
     "test": "pnpm test:unit",
-    "test:ci": "pnpm run test"
+    "test:ci": "pnpm run test",
+    "coverage": "hardhat coverage --testfiles test/contracts/**/*.test.ts"
   },
   "prettier": "prettier-config-archblock/contracts.json",
   "dependencies": {

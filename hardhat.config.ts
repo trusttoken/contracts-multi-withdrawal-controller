@@ -28,6 +28,7 @@ module.exports = {
   typechain: {
     outDir: 'build/types',
     target: 'ethers-v5',
+    dontOverrideCompile: true
   },
   solidity: {
     compilers: [compiler],

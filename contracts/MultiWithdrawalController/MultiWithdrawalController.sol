@@ -23,8 +23,6 @@ contract MultiWithdrawalController is IWithdrawController, Initializable, Access
         _;
     }
 
-    constructor() {}
-
     function initialize(address manager, uint256 _floor) external initializer {
         _grantRole(MANAGER_ROLE, manager);
         withdrawAllowed[Status.Closed] = true;
@@ -59,7 +57,7 @@ contract MultiWithdrawalController is IWithdrawController, Initializable, Access
 
     function _getExceptionForWithdrawal(address owner) internal view returns (WithdrawalException memory exception) {
         exception = withdrawalException;
-        require(exception.lender == owner, "MWC: No withdrawal exception for this address");
+        assert(exception.lender == owner);
     }
 
     function _calculateExceptionRedeem(
@@ -81,7 +79,7 @@ contract MultiWithdrawalController is IWithdrawController, Initializable, Access
         Status status = vault.portfolio().status();
 
         uint256 userMaxRedeem = vault.balanceOf(owner);
-        if (status == Status.Closed) {
+        if (status == Status.Closed || withdrawalException.lender == owner) {
             return userMaxRedeem;
         }
 
