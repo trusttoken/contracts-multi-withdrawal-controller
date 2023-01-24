@@ -98,9 +98,21 @@ describe('MultiWithdrawalController.multiRedeem', () => {
     ]
     await expect(equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions))
       .to.emit(equityTrancheData.withdrawController, 'Redeem')
-      .withArgs(exceptions[0].lender, exceptions[0].withdrawType, parseUSDC(8), exceptions[0].shareAmount)
+      .withArgs(
+        exceptions[0].lender,
+        equityTranche.address,
+        exceptions[0].withdrawType,
+        parseUSDC(8),
+        exceptions[0].shareAmount,
+      )
       .to.emit(equityTrancheData.withdrawController, 'Redeem')
-      .withArgs(exceptions[1].lender, exceptions[1].withdrawType, parseUSDC(5), exceptions[1].shareAmount)
+      .withArgs(
+        exceptions[1].lender,
+        equityTranche.address,
+        exceptions[1].withdrawType,
+        parseUSDC(5),
+        exceptions[1].shareAmount,
+      )
   })
 
   it('reverts when share price in withdrawal exception is zero', async () => {

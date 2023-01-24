@@ -44,11 +44,12 @@ interface IWithdrawController {
     /**
      * @notice Event emitted when redemption is executed by multiRedeem function
      * @param owner Address of shares owner
+     * @param vault Address of TrancheVault
      * @param withdrawType Type of withdrawal
      * @param assets Number of assets that should be redeemed
      * @param shares Number of shares that should be burned
      */
-    event Redeem(address owner, WithdrawType withdrawType, uint256 assets, uint256 shares);
+    event Redeem(address owner, address vault, WithdrawType withdrawType, uint256 assets, uint256 shares);
 
     /// @return WithdrawController manager role used for access control
     function MANAGER_ROLE() external view returns (bytes32);

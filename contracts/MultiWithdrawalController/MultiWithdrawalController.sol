@@ -126,7 +126,7 @@ contract MultiWithdrawalController is IWithdrawController, Initializable, Access
         (assets, fee) = _calculateExceptionRedeem(shares, exception.sharePrice, exception.fee);
         _ensureFloorRemains(vault, status, assets + fee);
 
-        emit Redeem(owner, exception.withdrawType, assets, shares);
+        emit Redeem(owner, msg.sender, exception.withdrawType, assets, shares);
     }
 
     function _ensureFloorRemains(
