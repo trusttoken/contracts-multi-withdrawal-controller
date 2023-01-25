@@ -6,7 +6,9 @@
     "preinstall": "npx only-allow pnpm",
     "build:hardhat": "hardhat compile",
     "build:typechain": "typechain --target ethers-v5 --out-dir build/types 'build/*.json'",
-    "build": "pnpm clean && pnpm build:hardhat && pnpm build:typechain",
+    "build:mars": "pnpm exec mars",
+    "build:save-canary": "bash ./scripts/saveCanary.sh",
+    "build": "pnpm clean && pnpm build:hardhat && pnpm build:typechain && pnpm build:save-canary && pnpm build:mars",
     "clean": "rm -rf ./build && hardhat clean",
     "lint:prettier": "prettier './{contracts,test,features}/**/*.{ts,sol}' --cache",
     "lint:sol": "solhint 'contracts/**/*.sol'",
@@ -16,7 +18,8 @@
     "test:unit": "mocha 'test/**/*.test.ts'",
     "test": "pnpm test:unit",
     "test:ci": "pnpm run test",
-    "coverage": "hardhat coverage --testfiles test/contracts/**/*.test.ts"
+    "coverage": "hardhat coverage --testfiles test/contracts/**/*.test.ts",
+    "deploy:contracts": "bash ./scripts/guardedRun.sh"
   },
   "prettier": "prettier-config-archblock/contracts.json",
   "dependencies": {
@@ -35,6 +38,7 @@
     "@types/node": "^17.0.12",
     "chai": "^4.3.6",
     "eslint-config-archblock": "workspace:*",
+    "ethereum-mars": "0.2.6-dev.eb75a27",
     "ethereum-waffle": "4.0.7",
     "ethers": "^5.7.1",
     "hardhat": "^2.11.2",

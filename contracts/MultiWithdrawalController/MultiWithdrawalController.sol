@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.16;
 
-import {IWithdrawController, WithdrawalException} from "./IWithdrawController.sol";
+import {IMultiWithdrawalController, WithdrawalException} from "./IMultiWithdrawalController.sol";
 import {Status, WithdrawAllowed} from "../carbon/interfaces/IWithdrawController.sol";
 import {ITrancheVault} from "../carbon/interfaces/ITrancheVault.sol";
 import {IStructuredPortfolio} from "../carbon/interfaces/IStructuredPortfolio.sol";
@@ -10,7 +10,7 @@ import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.s
 import {AccessControlEnumerable} from "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-contract MultiWithdrawalController is IWithdrawController, Initializable, AccessControlEnumerable {
+contract MultiWithdrawalController is IMultiWithdrawalController, Initializable, AccessControlEnumerable {
     /// @dev Manager role used for access control
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     uint256 public floor;

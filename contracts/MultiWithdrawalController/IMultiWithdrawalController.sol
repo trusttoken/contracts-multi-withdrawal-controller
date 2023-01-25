@@ -27,7 +27,7 @@ struct WithdrawalException {
  * @title Contract for managing withdraw related settings
  * @dev Used by TrancheVault contract
  */
-interface IWithdrawController {
+interface IMultiWithdrawalController {
     /**
      * @notice Event emitted when new floor is set
      * @param newFloor New floor value
