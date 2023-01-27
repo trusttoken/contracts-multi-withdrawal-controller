@@ -39,7 +39,7 @@
     "chai": "^4.3.6",
     "eslint-config-archblock": "workspace:*",
     "ethereum-mars": "0.2.6-dev.eb75a27",
-    "ethereum-waffle": "4.0.7",
+    "ethereum-waffle": "4.0.9",
     "ethers": "^5.7.1",
     "hardhat": "^2.11.2",
     "hardhat-gas-reporter": "^1.0.9",
