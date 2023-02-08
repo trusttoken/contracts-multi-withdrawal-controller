@@ -60,16 +60,6 @@ contract MultiWithdrawalController is IMultiWithdrawalController, Initializable,
         assert(exception.lender == owner);
     }
 
-    function _calculateExceptionRedeem(
-        uint256 shares,
-        uint256 price,
-        uint256 feeBps
-    ) internal pure returns (uint256 amount, uint256 fee) {
-        amount = (shares * price) / ONE_IN_BASIS_POINTS;
-        fee = _calculateSubtractedFee(amount, feeBps);
-        amount -= fee;
-    }
-
     function _calculateSubtractedFee(uint256 amount, uint256 feeInBasisPoints) internal pure returns (uint256) {
         return (amount * feeInBasisPoints) / ONE_IN_BASIS_POINTS;
     }
@@ -123,9 +113,10 @@ contract MultiWithdrawalController is IMultiWithdrawalController, Initializable,
         require(sender == address(this), "MWC: Only controller can withdraw based on exception");
         WithdrawalException memory exception = _getExceptionForWithdrawal(owner);
         assert(shares == exception.shareAmount);
-        (assets, fee) = _calculateExceptionRedeem(shares, exception.sharePrice, exception.fee);
-        _ensureFloorRemains(vault, status, assets + fee);
+        _ensureFloorRemains(vault, status, exception.assetAmount);
 
+        fee = _calculateSubtractedFee(exception.assetAmount, exception.fee);
+        assets = exception.assetAmount - fee;
         emit Redeem(owner, msg.sender, exception.withdrawType, assets, shares);
     }
 

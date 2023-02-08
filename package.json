@@ -19,7 +19,8 @@
     "test": "pnpm test:unit",
     "test:ci": "pnpm run test",
     "coverage": "hardhat coverage --testfiles test/contracts/**/*.test.ts",
-    "deploy:contracts": "bash ./scripts/guardedRun.sh"
+    "deploy:contracts": "bash ./scripts/guardedRun.sh",
+    "gas-report": "hardhat test test/**/*.gas-report.ts"
   },
   "prettier": "prettier-config-archblock/contracts.json",
   "dependencies": {

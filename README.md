@@ -23,12 +23,12 @@ struct WithdrawalException {
     address lender;
     WithdrawType withdrawType;
     uint256 shareAmount;
-    uint256 sharePrice;
+    uint256 assetAmount;
     uint256 fee;
 }
 ```
-The withdrawal exception model contains the lender address, withdrawal type, the amount of shares they will redeem, a share price relative to asset (for the purpose of this withdrawal) and a withdrawal fee percentage.
-The share price and fee are expressed in basis points (10000 BPs = 100%).
+The withdrawal exception model contains the lender address, withdrawal type, the amount of shares they will redeem, the amount of assets they will receive (minus fee that is calculated in contract) and a withdrawal fee percentage.
+The fee is expressed in basis points (10000 BPs = 100%).
 
 ## Methods
 
@@ -98,7 +98,7 @@ Their results are only guaranteed to be correct when called by `TrancheVault`, a
 The address managing the portfolio which contains the `TrancheVault` and its controller.
 The manager can process withdrawals for multiple investors, as well as configure the contract.
 - the `multiRedeem` function makes withdrawals for one or more investors, with the redemption terms
-(such as price per share and manager fee) set explicitly by the manager.
+(such as redeemed asset amount, burned shares and manager fee) set explicitly by the manager.
 This is agreed upon by the manager and investors off-chain and assumes the manager is trustworthy.
 - `setFloor`, `setWithdrawAllowed`, `configure` are used by the manager to configure the controller.
 See detailed descriptions in function descriptions above.

@@ -19,6 +19,6 @@ export const verifyBalances = (
     const multiplier = fee ? oneHundredPercent.sub(fee) : oneHundredPercent
 
     const difference = expectedBalanceDifference[index].mul(multiplier).div(ONE_HUNDRED_PERCENT)
-    expect(balancesAfter[index].sub(balanceBefore).abs()).to.be.closeTo(difference, 1)
+    expect(balancesAfter[index].sub(balanceBefore).abs()).to.eq(difference)
   })
 }

@@ -17,8 +17,8 @@ struct WithdrawalException {
     WithdrawType withdrawType;
     /// @dev Amount of shares that should be redeemed for given lender
     uint256 shareAmount;
-    /// @dev Price of single share (in BPS)
-    uint256 sharePrice;
+    /// @dev Amount of assets that should be transferred to given lender (before fee)
+    uint256 assetAmount;
     /// @dev Withdrawal fee (in BPS)
     uint256 fee;
 }
