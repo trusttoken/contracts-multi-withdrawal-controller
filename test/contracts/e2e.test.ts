@@ -213,10 +213,114 @@ describe('e2e', () => {
     await verifyAssetsAfterWithdrawal(equityTranche, other, parseUSDC(16))
   })
 
-  const verifyAssetsAfterWithdrawal = async (portfolio: TrancheVault, wallet: Wallet, expectedAssets: BigNumber) => {
+  it('blocking interest withdrawal does not change newly deposited asset value', async () => {
+    const {
+      equityTranche,
+      equityTrancheData,
+      wallet,
+      token,
+      other,
+      another,
+      addAndFundLoan,
+      repayLoanInFull,
+      depositAndApproveToTranche,
+      startPortfolioAndEnableLiveActions,
+    } = await loadFixture()
+
+    const principal = parseUSDC(100)
+    const interest = parseUSDC(4)
+    await depositAndApproveToTranche(equityTranche, principal, another)
+    await depositAndApproveToTranche(equityTranche, parseUSDC(400), other)
+    await startPortfolioAndEnableLiveActions()
+
+    const loan = createLoan(parseUSDC(200), parseUSDC(20), other)
+    const loanId = await addAndFundLoan(loan)
+    await repayLoanInFull(loanId, loan)
+
+    const anotherException: WithdrawalExceptionStruct[] = [
+      {
+        lender: another.address,
+        assetAmount: interest,
+        fee: interestWithdrawalFee,
+        shareAmount: await equityTranche.convertToShares(interest),
+        withdrawType: WithdrawType.Interest,
+      },
+    ]
+    await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, anotherException)
+    expect(await token.balanceOf(another.address)).to.eq(interest)
+
+    const remainingShares = await equityTranche.balanceOf(another.address)
+    expect(await equityTranche.convertToAssets(remainingShares)).to.eq(principal)
+
+    await depositAndApproveToTranche(equityTranche, parseUSDC(150), wallet)
+
+    const otherException: WithdrawalExceptionStruct[] = [
+      {
+        lender: other.address,
+        assetAmount: parseUSDC(16),
+        fee: interestWithdrawalFee,
+        shareAmount: await equityTranche.convertToShares(parseUSDC(16)),
+        withdrawType: WithdrawType.Interest,
+      },
+    ]
+    await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, otherException)
+
+    await verifyAssetsAfterWithdrawal(equityTranche, another, parseUSDC(100))
+    await verifyAssetsAfterWithdrawal(equityTranche, other, parseUSDC(400))
+    await verifyAssetsAfterWithdrawal(equityTranche, wallet, parseUSDC(150))
+  })
+
+  it('withdraws all interest to single lender', async () => {
+    const {
+      equityTranche,
+      equityTrancheData,
+      other,
+      another,
+      addAndFundLoan,
+      repayLoanInFull,
+      depositAndApproveToTranche,
+      startPortfolioAndEnableLiveActions,
+    } = await loadFixture()
+
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), another)
+    await depositAndApproveToTranche(equityTranche, parseUSDC(400), other)
+    await startPortfolioAndEnableLiveActions()
+
+    const loan = createLoan(parseUSDC(200), parseUSDC(20), other)
+    const loanId = await addAndFundLoan(loan)
+    await repayLoanInFull(loanId, loan)
+
+    const exceptions: WithdrawalExceptionStruct[] = [
+      {
+        lender: another.address,
+        assetAmount: parseUSDC(20),
+        fee: interestWithdrawalFee,
+        shareAmount: await equityTranche.convertToShares(parseUSDC(4)),
+        withdrawType: WithdrawType.Interest,
+      },
+      {
+        lender: other.address,
+        assetAmount: 1,
+        fee: interestWithdrawalFee,
+        shareAmount: await equityTranche.convertToShares(parseUSDC(16)),
+        withdrawType: WithdrawType.Interest,
+      },
+    ]
+    await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
+
+    await verifyAssetsAfterWithdrawal(equityTranche, another, parseUSDC(100))
+    await verifyAssetsAfterWithdrawal(equityTranche, other, parseUSDC(400), 2)
+  })
+
+  const verifyAssetsAfterWithdrawal = async (
+    portfolio: TrancheVault,
+    wallet: Wallet,
+    expectedAssets: BigNumber,
+    delta = 1,
+  ) => {
     const lenderSharesAfter = await portfolio.balanceOf(wallet.address)
     const lenderAssetsAfter = await portfolio.convertToAssets(lenderSharesAfter)
-    expect(lenderAssetsAfter).to.be.closeTo(expectedAssets, 1)
+    expect(lenderAssetsAfter).to.be.closeTo(expectedAssets, delta)
   }
 
   const createLoan = (principal: BigNumber, periodPayment: BigNumber, recipient: Wallet): Loan => {
