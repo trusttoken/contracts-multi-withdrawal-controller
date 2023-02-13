@@ -11,14 +11,15 @@
 
 pragma solidity ^0.8.16;
 
-import {TrancheVault} from "../TrancheVault.sol";
+import {ProtocolConfig} from "../ProtocolConfig.sol";
 
-contract TrancheVaultTest is TrancheVault {
-    function mockIncreaseVirtualTokenBalance(uint256 amount) external {
-        virtualTokenBalance += amount;
-    }
-
-    function mockDecreaseVirtualTokenBalance(uint256 amount) external {
-        virtualTokenBalance -= amount;
+contract ProtocolConfigTest is ProtocolConfig {
+    constructor(
+        uint256 _defaultProtocolFeeRate,
+        address _protocolAdmin,
+        address _protocolTreasury,
+        address _pauserAddress
+    ) {
+        initialize(_defaultProtocolFeeRate, _protocolAdmin, _protocolTreasury, _pauserAddress);
     }
 }

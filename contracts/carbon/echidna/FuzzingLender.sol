@@ -11,14 +11,12 @@
 
 pragma solidity ^0.8.16;
 
-import {TrancheVault} from "../TrancheVault.sol";
+import {IERC20WithDecimals} from "../interfaces/IERC20WithDecimals.sol";
+import {ITrancheVault, Checkpoint} from "../interfaces/ITrancheVault.sol";
 
-contract TrancheVaultTest is TrancheVault {
-    function mockIncreaseVirtualTokenBalance(uint256 amount) external {
-        virtualTokenBalance += amount;
-    }
-
-    function mockDecreaseVirtualTokenBalance(uint256 amount) external {
-        virtualTokenBalance -= amount;
+contract FuzzingLender {
+    function deposit(ITrancheVault tranche, uint256 amount) external {
+        IERC20WithDecimals(tranche.asset()).approve(address(tranche), amount);
+        tranche.deposit(amount, address(this));
     }
 }

@@ -11,14 +11,11 @@
 
 pragma solidity ^0.8.16;
 
-import {TrancheVault} from "../TrancheVault.sol";
+import {FixedInterestOnlyLoans} from "./FixedInterestOnlyLoans.sol";
+import {ProtocolConfig} from "../ProtocolConfig.sol";
 
-contract TrancheVaultTest is TrancheVault {
-    function mockIncreaseVirtualTokenBalance(uint256 amount) external {
-        virtualTokenBalance += amount;
-    }
-
-    function mockDecreaseVirtualTokenBalance(uint256 amount) external {
-        virtualTokenBalance -= amount;
+contract FixedInterestOnlyLoansTest is FixedInterestOnlyLoans {
+    constructor(ProtocolConfig protocolConfig) {
+        initialize(protocolConfig);
     }
 }

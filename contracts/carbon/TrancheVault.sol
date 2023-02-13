@@ -74,7 +74,7 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         uint256 _waterfallIndex,
         address manager,
         uint256 _managerFeeRate
-    ) external initializer {
+    ) public initializer {
         __ERC20_init(_name, _symbol);
         __Upgradeable_init(_protocolConfig.protocolAdmin(), address(0));
 
@@ -106,7 +106,7 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         }
         uint256 balance = totalAssetsBeforeFees();
         uint256 pendingFees = totalPendingFeesForAssets(balance);
-        return balance > pendingFees ? balance - pendingFees : 0;
+        return _saturatingSub(balance, pendingFees);
     }
 
     function totalAssetsBeforeFees() public view returns (uint256) {
@@ -388,108 +388,67 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         _updateCheckpoint(totalAssets());
     }
 
-    function updateCheckpointFromPortfolio(uint256 newTotalAssets) external {
+    function updateCheckpointFromPortfolio(uint256 newTotalAssets, uint256 newDeficit) external {
         _requirePortfolio();
-        _updateCheckpoint(newTotalAssets);
-    }
-
-    function _maxTrancheValueComplyingWithRatio() internal view returns (uint256) {
-        if (portfolio.status() != Status.Live) {
-            return type(uint256).max;
-        }
-
-        if (waterfallIndex == 0) {
-            return type(uint256).max;
-        }
-
-        uint256[] memory waterfallValues = portfolio.calculateWaterfall();
-
-        uint256 subordinateValue = 0;
-        for (uint256 i = 0; i < waterfallIndex; i++) {
-            subordinateValue += waterfallValues[i];
-        }
-
-        uint256 minSubordinateRatio = portfolio.getTrancheData(waterfallIndex).minSubordinateRatio;
-        if (minSubordinateRatio == 0) {
-            return type(uint256).max;
-        }
-
-        return (subordinateValue * BASIS_PRECISION) / minSubordinateRatio;
+        _updateCheckpoint(newTotalAssets, newDeficit);
     }
 
     function _maxDepositComplyingWithRatio() internal view returns (uint256) {
-        uint256 maxTrancheValueComplyingWithRatio = _maxTrancheValueComplyingWithRatio();
+        uint256 maxTrancheValueComplyingWithRatio = portfolio.maxTrancheValueComplyingWithRatio(waterfallIndex);
         if (maxTrancheValueComplyingWithRatio == type(uint256).max) {
             return type(uint256).max;
         }
         return _saturatingSub(maxTrancheValueComplyingWithRatio, totalAssets());
     }
 
-    function _minTrancheValueComplyingWithRatio() internal view returns (uint256) {
-        if (portfolio.status() != Status.Live) {
-            return 0;
-        }
-
-        uint256[] memory waterfallValues = portfolio.calculateWaterfall();
-        uint256 tranchesCount = waterfallValues.length;
-        if (waterfallIndex == tranchesCount - 1) {
-            return 0;
-        }
-
-        uint256 subordinateValueWithoutTranche = 0;
-        uint256 maxThreshold = 0;
-        for (uint256 i = 0; i < tranchesCount - 1; i++) {
-            uint256 trancheValue = waterfallValues[i];
-            if (i != waterfallIndex) {
-                subordinateValueWithoutTranche += trancheValue;
-            }
-            if (i >= waterfallIndex) {
-                uint256 lowerBound = (waterfallValues[i + 1] * portfolio.getTrancheData(i + 1).minSubordinateRatio) / BASIS_PRECISION;
-                uint256 minTrancheValue = _saturatingSub(lowerBound, subordinateValueWithoutTranche);
-                maxThreshold = Math.max(minTrancheValue, maxThreshold);
-            }
-        }
-        return maxThreshold;
+    function _maxWithdrawComplyingWithRatio() internal view returns (uint256) {
+        uint256 minTrancheValueComplyingWithRatio = portfolio.minTrancheValueComplyingWithRatio(waterfallIndex);
+        return _saturatingSub(totalAssets(), minTrancheValueComplyingWithRatio);
     }
 
-    function _maxWithdrawComplyingWithRatio() internal view returns (uint256) {
-        uint256 minTrancheValueComplyingWithRatio = _minTrancheValueComplyingWithRatio();
-        return _saturatingSub(totalAssets(), minTrancheValueComplyingWithRatio);
+    function _updateCheckpoint(uint256 newTotalAssets) internal {
+        return _updateCheckpoint(newTotalAssets, 0);
     }
 
     /**
      * @param newTotalAssets Total assets value to save in checkpoint with fees deducted
      */
-    function _updateCheckpoint(uint256 newTotalAssets) internal {
+    function _updateCheckpoint(uint256 newTotalAssets, uint256 newDeficit) internal {
         if (portfolio.status() == Status.CapitalFormation) {
             return;
         }
 
         uint256 _totalAssetsBeforeFees = totalAssetsBeforeFees();
-        _payProtocolFee(_totalAssetsBeforeFees);
-        _payManagerFee(_totalAssetsBeforeFees);
+        uint256 _protocolFee = _payProtocolFee(_totalAssetsBeforeFees, newDeficit);
+        _payManagerFee(_totalAssetsBeforeFees, _protocolFee, newDeficit);
 
         uint256 protocolFeeRate = protocolConfig.protocolFeeRate();
-        uint256 newTotalAssetsWithUnpaidFees = newTotalAssets + unpaidManagerFee + unpaidProtocolFee;
         checkpoint = Checkpoint({
-            totalAssets: newTotalAssetsWithUnpaidFees,
+            totalAssets: newTotalAssets,
             protocolFeeRate: protocolFeeRate,
-            timestamp: block.timestamp
+            timestamp: block.timestamp,
+            unpaidFees: unpaidManagerFee + unpaidProtocolFee
         });
 
         emit CheckpointUpdated(newTotalAssets, protocolFeeRate);
     }
 
-    function _payProtocolFee(uint256 _totalAssetsBeforeFees) internal {
-        uint256 pendingFee = _pendingProtocolFee(_totalAssetsBeforeFees);
+    function _payProtocolFee(uint256 _totalAssetsBeforeFees, uint256 newDeficit) internal returns (uint256) {
+        uint256 pendingFee = _pendingProtocolFee(_totalAssetsBeforeFees, newDeficit);
         address protocolAddress = protocolConfig.protocolTreasury();
         (uint256 paidProtocolFee, uint256 _unpaidProtocolFee) = _payFee(pendingFee, protocolAddress);
         unpaidProtocolFee = _unpaidProtocolFee;
         emit ProtocolFeePaid(protocolAddress, paidProtocolFee);
+
+        return paidProtocolFee + _unpaidProtocolFee;
     }
 
-    function _payManagerFee(uint256 _totalAssetsBeforeFees) internal {
-        uint256 pendingFee = _pendingManagerFee(_totalAssetsBeforeFees);
+    function _payManagerFee(
+        uint256 _totalAssetsBeforeFees,
+        uint256 protocolFee,
+        uint256 newDeficit
+    ) internal {
+        uint256 pendingFee = _pendingManagerFee(_totalAssetsBeforeFees, protocolFee, newDeficit);
         (uint256 paidManagerFee, uint256 _unpaidManagerFee) = _payFee(pendingFee, managerFeeBeneficiary);
         unpaidManagerFee = _unpaidManagerFee;
         emit ManagerFeePaid(managerFeeBeneficiary, paidManagerFee);
@@ -547,7 +506,8 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
     }
 
     function totalPendingFeesForAssets(uint256 _totalAssetsBeforeFees) public view returns (uint256) {
-        return _pendingProtocolFee(_totalAssetsBeforeFees) + _pendingManagerFee(_totalAssetsBeforeFees);
+        uint256 _protocolFee = _pendingProtocolFee(_totalAssetsBeforeFees);
+        return _protocolFee + _pendingManagerFee(_totalAssetsBeforeFees, _protocolFee);
     }
 
     function pendingProtocolFee() external view returns (uint256) {
@@ -555,26 +515,47 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
     }
 
     function _pendingProtocolFee(uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
-        return _accruedProtocolFee(_totalAssetsBeforeFees) + unpaidProtocolFee;
+        return _pendingProtocolFee(_totalAssetsBeforeFees, portfolio.getTrancheData(waterfallIndex).loansDeficitCheckpoint.deficit);
+    }
+
+    function _pendingProtocolFee(uint256 _totalAssetsBeforeFees, uint256 newDeficit) internal view returns (uint256) {
+        uint256 totalProtocolFee = _accruedFee(checkpoint.protocolFeeRate, _totalAssetsBeforeFees) + unpaidProtocolFee;
+        uint256 maxTrancheValue = _totalAssetsBeforeFees + newDeficit;
+
+        return _capFee(totalProtocolFee, maxTrancheValue);
     }
 
     function pendingManagerFee() external view returns (uint256) {
-        return _pendingManagerFee(totalAssetsBeforeFees());
+        return _pendingManagerFee(totalAssetsBeforeFees(), 0);
     }
 
-    function _pendingManagerFee(uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
-        return _accruedManagerFee(_totalAssetsBeforeFees) + unpaidManagerFee;
+    function _pendingManagerFee(uint256 _totalAssetsBeforeFees, uint256 _protocolFees) internal view returns (uint256) {
+        return
+            _pendingManagerFee(
+                _totalAssetsBeforeFees,
+                _protocolFees,
+                portfolio.getTrancheData(waterfallIndex).loansDeficitCheckpoint.deficit
+            );
     }
 
-    function _accruedProtocolFee(uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
-        return _accruedFee(checkpoint.protocolFeeRate, _totalAssetsBeforeFees);
-    }
-
-    function _accruedManagerFee(uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
+    function _pendingManagerFee(
+        uint256 _totalAssetsBeforeFees,
+        uint256 _protocolFees,
+        uint256 newDeficit
+    ) internal view returns (uint256) {
         if (portfolio.status() != Status.Live) {
-            return 0;
+            return unpaidManagerFee;
         }
-        return _accruedFee(managerFeeRate, _totalAssetsBeforeFees);
+        uint256 totalManagerFee = _accruedFee(managerFeeRate, _totalAssetsBeforeFees) + unpaidManagerFee;
+        uint256 maxTrancheValue = _saturatingSub(_totalAssetsBeforeFees + newDeficit, _protocolFees);
+        return _capFee(totalManagerFee, maxTrancheValue);
+    }
+
+    function _capFee(uint256 fee, uint256 availableAssets) internal view returns (uint256) {
+        if (waterfallIndex != 0 && portfolio.status() == Status.Live) {
+            return Math.min(fee, availableAssets);
+        }
+        return fee;
     }
 
     function _accruedFee(uint256 feeRate, uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
