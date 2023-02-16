@@ -312,6 +312,50 @@ describe('e2e', () => {
     await verifyAssetsAfterWithdrawal(equityTranche, other, parseUSDC(400), 2)
   })
 
+  it('changes to redeemed assets impacts all lenders', async () => {
+    const {
+      equityTranche,
+      equityTrancheData,
+      other,
+      another,
+      addAndFundLoan,
+      repayLoanInFull,
+      depositAndApproveToTranche,
+      startPortfolioAndEnableLiveActions,
+    } = await loadFixture()
+
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), another)
+    await depositAndApproveToTranche(equityTranche, parseUSDC(400), other)
+    await startPortfolioAndEnableLiveActions()
+
+    const loan = createLoan(parseUSDC(200), parseUSDC(20), other)
+    const loanId = await addAndFundLoan(loan)
+    await repayLoanInFull(loanId, loan)
+
+    const exceptions: WithdrawalExceptionStruct[] = [
+      {
+        lender: another.address,
+        assetAmount: parseUSDC(100),
+        fee: interestWithdrawalFee,
+        shareAmount: await equityTranche.convertToShares(parseUSDC(4)),
+        withdrawType: WithdrawType.Interest,
+      },
+      {
+        lender: other.address,
+        assetAmount: parseUSDC(4),
+        fee: interestWithdrawalFee,
+        shareAmount: await equityTranche.convertToShares(parseUSDC(16)),
+        withdrawType: WithdrawType.Interest,
+      },
+    ]
+    await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions)
+
+    const anotherAssets = await equityTranche.convertToAssets(await equityTranche.balanceOf(another.address))
+    expect(anotherAssets).to.be.closeTo(parseUSDC(83.2), 1)
+    const otherAssets = await equityTranche.convertToAssets(await equityTranche.balanceOf(other.address))
+    expect(otherAssets).to.be.closeTo(parseUSDC(332.8), 1)
+  })
+
   const verifyAssetsAfterWithdrawal = async (
     portfolio: TrancheVault,
     wallet: Wallet,
