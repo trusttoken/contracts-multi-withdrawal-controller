@@ -1,0 +1,9 @@
+{
+  "goerli": {
+    "multiWithdrawalController": {
+      "txHash": "0xa0b33f39d1b30388fe0ba33042dde25fa93a871efda0dcf4a524e331f6a4a86a",
+      "address": "0xB7Bdbf44c5B5AD2Ca7C1843cc3bb440DD06FdaF5",
+      "multisig": false
+    }
+  }
+}
