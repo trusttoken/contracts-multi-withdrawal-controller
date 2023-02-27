@@ -15,6 +15,12 @@ interface FixtureTrancheData extends TrancheData {
   calculateTargetValue: (yearDivider?: number) => BigNumber
 }
 
+export interface StructuredPortfolioFixtureConfig {
+  tokenDecimals: number
+  initialDeposits: number[]
+  initialTokens: number[]
+}
+
 export enum PortfolioStatus {
   CapitalFormation,
   Live,
@@ -26,9 +32,19 @@ export enum WithdrawType {
   Principal,
 }
 
-const getStructuredPortfolioFixture = (tokenDecimals: number) => {
+const getStructuredPortfolioFixture = ({
+  tokenDecimals = 6,
+  initialTokens = [1e12, 1e10],
+}: {
+  tokenDecimals?: number
+  initialTokens?: number[]
+}) => {
   return async ([wallet, other, ...rest]: Wallet[], provider: MockProvider) => {
-    const factoryFixtureResult = await getStructuredPortfolioFactoryFixture(tokenDecimals)([wallet, other, ...rest])
+    const factoryFixtureResult = await getStructuredPortfolioFactoryFixture({ tokenDecimals, initialTokens })([
+      wallet,
+      other,
+      ...rest,
+    ])
     const { portfolioDuration, getPortfolioFromTx, tranches, tranchesData, fixedInterestOnlyLoans, token } =
       factoryFixtureResult
 
@@ -134,18 +150,22 @@ const getStructuredPortfolioFixture = (tokenDecimals: number) => {
       burnFromPortfolio,
       increaseAssetsInTranche,
       decreaseAssetsInTranche,
+      otherWallets: rest,
     }
   }
 }
 
-export const structuredPortfolioFixture = getStructuredPortfolioFixture(6)
+export const structuredPortfolioFixture = getStructuredPortfolioFixture({ tokenDecimals: 6 })
 
-export const getStructuredPortfolioLiveFixture = (tokenDecimals: number) => {
+export const getStructuredPortfolioLiveFixture = (
+  config: StructuredPortfolioFixtureConfig = {
+    tokenDecimals: 6,
+    initialDeposits: [2e6, 3e6, 5e6],
+    initialTokens: [2e6, 3e6],
+  },
+) => {
   return async ([wallet, borrower, ...rest]: Wallet[], provider: MockProvider) => {
-    const portfolioFixtureResult = await getStructuredPortfolioFixture(tokenDecimals)(
-      [wallet, borrower, ...rest],
-      provider,
-    )
+    const portfolioFixtureResult = await getStructuredPortfolioFixture(config)([wallet, borrower, ...rest], provider)
     const {
       tranches,
       depositToTranche,
@@ -155,10 +175,12 @@ export const getStructuredPortfolioLiveFixture = (tokenDecimals: number) => {
       startPortfolioAndEnableLiveActions,
     } = portfolioFixtureResult
 
-    const initialDeposits = [2e6, 3e6, 5e6].map(parseTokenUnits)
+    const initialDeposits = config.initialDeposits.map(parseTokenUnits)
     const totalDeposit = sum(...initialDeposits)
-    for (let i = 0; i < tranches.length; i++) {
-      await depositToTranche(tranches[i], initialDeposits[i])
+    if (initialDeposits.length > 0) {
+      for (let i = 0; i < tranches.length; i++) {
+        await depositToTranche(tranches[i], initialDeposits[i])
+      }
     }
 
     const portfolioStartTx = await startPortfolioAndEnableLiveActions()
@@ -199,4 +221,4 @@ export const getStructuredPortfolioLiveFixture = (tokenDecimals: number) => {
   }
 }
 
-export const structuredPortfolioLiveFixture = getStructuredPortfolioLiveFixture(6)
+export const structuredPortfolioLiveFixture = getStructuredPortfolioLiveFixture()

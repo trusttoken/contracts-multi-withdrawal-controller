@@ -16,8 +16,9 @@
     "lint:fix": "pnpm run lint:prettier --write --loglevel error && pnpm run lint:sol --fix && pnpm run lint:ts --fix",
     "lint": "pnpm run lint:sol && pnpm run lint:prettier --check --loglevel error && pnpm run lint:ts",
     "test:unit": "mocha 'test/**/*.test.ts'",
-    "test": "pnpm test:unit",
+    "test": "pnpm test:unit && pnpm test:feature",
     "test:ci": "pnpm run test",
+    "test:feature": "cucumber-js || true",
     "coverage": "hardhat coverage --testfiles test/contracts/**/*.test.ts",
     "deploy:contracts": "bash ./scripts/guardedRun.sh",
     "gas-report": "hardhat test test/**/*.gas-report.ts"
@@ -28,6 +29,7 @@
     "@openzeppelin/contracts-upgradeable": "4.7.3"
   },
   "devDependencies": {
+    "@cucumber/cucumber": "^8.6.0",
     "@ethersproject/abi": "^5.7.0",
     "@ethersproject/bytes": "^5.7.0",
     "@ethersproject/constants": "^5.7.0",

@@ -10,7 +10,7 @@ import {
   TrancheVaultTest__factory,
 } from 'build/types'
 import { BigNumberish, BytesLike, constants, Contract, ContractTransaction, utils, Wallet } from 'ethers'
-import { YEAR, DAY } from 'utils/constants'
+import { DAY, YEAR } from 'utils/constants'
 import { extractEventArgFromTx } from 'utils/extractEventArgFromTx'
 import { deployFixedInterestOnlyLoans } from './deployFixedInterestOnlyLoans'
 import { deployControllers } from 'fixtures/deployControllers'
@@ -43,14 +43,23 @@ export interface PortfolioParams {
   minimumSize: number
 }
 
-export const getStructuredPortfolioFactoryFixture = (tokenDecimals: number) => {
-  return async ([wallet, other]: Wallet[]) => {
+export const getStructuredPortfolioFactoryFixture = ({
+  tokenDecimals = 6,
+  initialTokens = [1e12, 1e10],
+}: {
+  tokenDecimals?: number
+  initialTokens?: number[]
+}) => {
+  return async (wallets: Wallet[]) => {
+    const [wallet] = wallets
     const token = await new MockToken__factory(wallet).deploy(tokenDecimals)
 
     const parseTokenUnits = (amount: string | number) => utils.parseUnits(amount.toString(), tokenDecimals)
 
-    await token.mint(wallet.address, parseTokenUnits(1e12))
-    await token.mint(other.address, parseTokenUnits(1e10))
+    for (let index = 0; index < initialTokens.length; index++) {
+      const amount = initialTokens[index]
+      await token.mint(wallets[index].address, parseTokenUnits(amount))
+    }
 
     const structuredPortfolioImplementation = await new StructuredPortfolioTest__factory(wallet).deploy()
     const trancheVaultImplementation = await new TrancheVaultTest__factory(wallet).deploy()
@@ -281,4 +290,4 @@ export const getStructuredPortfolioFactoryFixture = (tokenDecimals: number) => {
   }
 }
 
-export const structuredPortfolioFactoryFixture = getStructuredPortfolioFactoryFixture(6)
+export const structuredPortfolioFactoryFixture = getStructuredPortfolioFactoryFixture({ tokenDecimals: 6 })
