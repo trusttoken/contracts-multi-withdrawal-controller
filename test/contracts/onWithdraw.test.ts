@@ -10,7 +10,7 @@ describe('MultiWithdrawalController.onWithdraw', () => {
   describe('when withdrawing based on exception', () => {
     it('reverts if called by lender', async () => {
       const { withdrawFromTranche, equityTranche, wallet } = await loadFixture()
-      await expect(withdrawFromTranche(equityTranche, parseUSDC(50), wallet.address)).to.be.revertedWith(
+      await expect(withdrawFromTranche(equityTranche, parseUSDC(0), wallet.address)).to.be.revertedWith(
         'MWC: Withdrawals are not allowed',
       )
     })

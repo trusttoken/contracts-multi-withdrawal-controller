@@ -44,6 +44,9 @@ contract MultiWithdrawalController is IMultiWithdrawalController, Initializable,
     function maxWithdraw(address owner) public view returns (uint256) {
         ITrancheVault vault = ITrancheVault(msg.sender);
         Status status = vault.portfolio().status();
+        if (!withdrawAllowed[status]) {
+            return 0;
+        }
 
         uint256 ownerShares = vault.balanceOf(owner);
         uint256 userMaxWithdraw = vault.convertToAssets(ownerShares);
@@ -67,9 +70,13 @@ contract MultiWithdrawalController is IMultiWithdrawalController, Initializable,
     function maxRedeem(address owner) external view returns (uint256) {
         ITrancheVault vault = ITrancheVault(msg.sender);
         Status status = vault.portfolio().status();
+        address exceptionLender = withdrawalException.lender;
+        if (!withdrawAllowed[status] && exceptionLender != owner) {
+            return 0;
+        }
 
         uint256 userMaxRedeem = vault.balanceOf(owner);
-        if (status == Status.Closed || withdrawalException.lender == owner) {
+        if (status == Status.Closed || exceptionLender == owner) {
             return userMaxRedeem;
         }
 

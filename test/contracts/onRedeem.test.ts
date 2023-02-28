@@ -10,7 +10,7 @@ describe('MultiWithdrawalController.onRedeem', () => {
   describe('when redeeming based on exception', () => {
     it('reverts if called by lender', async () => {
       const { redeemFromTranche, equityTranche } = await loadFixture()
-      await expect(redeemFromTranche(equityTranche, parseUSDC(50))).to.be.revertedWith(
+      await expect(redeemFromTranche(equityTranche, parseUSDC(0))).to.be.revertedWith(
         'MWC: Only controller can withdraw based on exception',
       )
     })
