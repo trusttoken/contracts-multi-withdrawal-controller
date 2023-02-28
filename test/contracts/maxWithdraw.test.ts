@@ -1,5 +1,9 @@
 import { expect } from 'chai'
-import { PortfolioStatus, structuredPortfolioFixture } from 'fixtures/structuredPortfolioFixture'
+import {
+  PortfolioStatus,
+  structuredPortfolioFixture,
+  structuredPortfolioLiveFixture,
+} from 'fixtures/structuredPortfolioFixture'
 import { parseUSDC } from 'utils'
 import { setupFixtureLoader } from 'test/setup'
 
@@ -39,5 +43,16 @@ describe('MultiWithdrawalController.maxWithdraw', () => {
       await startAndClosePortfolio()
       expect(await equityTranche.maxWithdraw(wallet.address)).to.eq(parseUSDC(100))
     })
+  })
+
+  it('is limited by virtual token balance if it is below totalAssets', async () => {
+    const { structuredPortfolio, addAndFundLoan, getLoan, equityTranche, equityTrancheData, wallet } =
+      await fixtureLoader(structuredPortfolioLiveFixture)
+    await equityTrancheData.withdrawController.setWithdrawAllowed(true, PortfolioStatus.Live)
+
+    const maxLoanValue = (await structuredPortfolio.totalAssets()).sub(parseUSDC(1))
+    await addAndFundLoan(getLoan({ principal: maxLoanValue }))
+    await structuredPortfolio.updateCheckpoints()
+    expect(await equityTranche.maxWithdraw(wallet.address)).to.equal(await structuredPortfolio.virtualTokenBalance())
   })
 })
