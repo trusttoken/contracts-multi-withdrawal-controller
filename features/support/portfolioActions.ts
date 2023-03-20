@@ -31,7 +31,7 @@ class PortfolioActions {
     if (shares === undefined) return
     const lenderShares = await this.fixture.equityTranche.balanceOf(this.currentActor.address)
 
-    expect(lenderShares).to.be.closeTo(parseUSDC(shares), parseUSDC(PRECISION))
+    expect(lenderShares, `shares of ${this.currentActorName()}`).to.be.closeTo(parseUSDC(shares), parseUSDC(PRECISION))
   }
 
   async expectAssets(assets?: number) {
@@ -39,7 +39,12 @@ class PortfolioActions {
     const lenderShares = await this.fixture.equityTranche.balanceOf(this.currentActor.address)
     const lenderAssets = await this.fixture.equityTranche.convertToAssets(lenderShares)
 
-    expect(lenderAssets).to.be.closeTo(parseUSDC(assets), parseUSDC(PRECISION))
+    expect(lenderAssets, `assets of ${this.currentActorName()}`).to.be.closeTo(parseUSDC(assets), parseUSDC(PRECISION))
+  }
+
+  private currentActorName() {
+    const found = Object.entries(this.actors).find(([, { address }]) => address === this.currentActor.address)
+    return found?.[0]
   }
 }
 

@@ -119,7 +119,7 @@ Then(/^lenders have$/, async function (this: ClaimableInterestWorld, lendersData
     await this.expectShares(name, shares)
     await this.expectAssets(name, assets)
     tokenBalance &&
-      expect(await this.fixture.token.balanceOf(this.getActor(name).address)).to.be.closeTo(
+      expect(await this.fixture.token.balanceOf(this.getActor(name).address), `tokens of ${name}`).to.be.closeTo(
         parseUSDC(tokenBalance),
         parseUSDC(PRECISION),
       )

@@ -102,3 +102,62 @@ Feature: Manager Disburses interest
         | name  | shares | assets | token balance |
         | Alice | 1,500  | 2000   | 1,000         |
         | Bob   | 750    | 1000   | 0.001         |
+
+  Rule: (4) Interest of lenders who did not approve shares cannot be given to other lenders
+
+    It is impossible do divert interest of a lender who did not approve shares to other lenders. Without burning any
+    of the shares, we cannot at the same time: burn shares of other lenders **and** keep the share price.
+
+    Example: 3 lenders, all have approved - for comparison with next case
+
+      Given lenders
+        | name    | shares | assets |
+        | Alice   | 1,000  | 1,000  |
+        | Bob     | 1,000  | 1,000  |
+        | Charlie | 1,000  | 1,000  |
+      And portfolio receives interest of 1,500
+      And portfolio has
+        | assets      | 4,500 |
+        | share price | 1.5   |
+      When an interest disbursement is made
+        | name    | assets | shares burned |
+        | Alice   | 500    | 333.3333      |
+        | Bob     | 500    | 333.3333      |
+        | Charlie | 500    | 333.3333      |
+      Then portfolio has
+        | assets      | 3,000 |
+        | shares      | 2,000 |
+        | share price | 1.5   |
+      And lenders have
+        | name    | shares   | assets | token balance |
+        | Alice   | 666.6667 | 1,000  | 500           |
+        | Bob     | 666.6667 | 1,000  | 500           |
+        | Charlie | 666.6667 | 1,000  | 500           |
+
+    Example: Charlie didn't approve shares
+
+    In the case when Charlie didn't approve shares, his assets need to stay in the portfolio. Effectively, those assets
+    are "reinvested", or compounded.
+
+      Given lenders
+        | name    | shares | assets |
+        | Alice   | 1,000  | 1,000  |
+        | Bob     | 1,000  | 1,000  |
+        | Charlie | 1,000  | 1,000  |
+      And portfolio receives interest of 1,500
+      And portfolio has
+        | assets      | 4,500 |
+        | share price | 1.5   |
+      When an interest disbursement is made
+        | name  | assets | shares burned |
+        | Alice | 500    | 333.3333      |
+        | Bob   | 500    | 333.3333      |
+      Then portfolio has
+        | assets      | 3,500      |
+        | shares      | 2,333.3334 |
+        | share price | 1.5        |
+      And lenders have
+        | name    | shares   | assets | token balance |
+        | Alice   | 666.6667 | 1,000  | 500           |
+        | Bob     | 666.6667 | 1,000  | 500           |
+        | Charlie | 1000     | 1,500  | 0             |
