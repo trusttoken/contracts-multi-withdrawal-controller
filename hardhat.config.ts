@@ -28,7 +28,7 @@ module.exports = {
   typechain: {
     outDir: 'build/types',
     target: 'ethers-v5',
-    dontOverrideCompile: true
+    dontOverrideCompile: true,
   },
   solidity: {
     compilers: [compiler],
@@ -40,5 +40,5 @@ module.exports = {
   waffle: {
     skipEstimateGas: '0xB71B00',
     injectCallHistory: true,
-  }
+  },
 }
