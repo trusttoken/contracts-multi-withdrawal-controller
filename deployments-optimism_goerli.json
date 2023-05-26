@@ -1,8 +1,8 @@
 {
   "optimism_goerli": {
     "multiWithdrawalController": {
-      "txHash": "0x8619d468282526f689e3bc2d6218c932dc6cf6288d864f7c8d59c593857d7ed7",
-      "address": "0x31f3B1943E1929ed71F8bBD0561797A6a4AE3e22",
+      "txHash": "0xafb4fac610c85ad9b3d3a46e9fb2eb45859c381dac342dcb9b5fac67d61998c0",
+      "address": "0xc97A9004f1F5cd7Fe8B678D10eE4396f5CC988AA",
       "multisig": false
     }
   }

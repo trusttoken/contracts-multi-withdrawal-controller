@@ -1,8 +1,8 @@
 {
   "goerli": {
     "multiWithdrawalController": {
-      "txHash": "0xa0b33f39d1b30388fe0ba33042dde25fa93a871efda0dcf4a524e331f6a4a86a",
-      "address": "0xB7Bdbf44c5B5AD2Ca7C1843cc3bb440DD06FdaF5",
+      "txHash": "0xa6383dc94fda9be41d39b36d80c5299669cfece593e5d693e70fa4e6e2823241",
+      "address": "0x18107805ac888f1D2476B702904dfa09d081Ab7D",
       "multisig": false
     }
   }
