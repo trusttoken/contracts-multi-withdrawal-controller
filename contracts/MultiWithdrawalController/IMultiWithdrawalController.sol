@@ -48,8 +48,9 @@ interface IMultiWithdrawalController {
      * @param withdrawType Type of withdrawal
      * @param assets Number of assets that should be redeemed
      * @param shares Number of shares that should be burned
+     * @param fee Number of assets paid as manager fee
      */
-    event Redeem(address owner, address vault, WithdrawType withdrawType, uint256 assets, uint256 shares);
+    event Redeem(address owner, address vault, WithdrawType withdrawType, uint256 assets, uint256 shares, uint256 fee);
 
     /// @return WithdrawController manager role used for access control
     function MANAGER_ROLE() external view returns (bytes32);

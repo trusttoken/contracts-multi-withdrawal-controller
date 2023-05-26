@@ -92,7 +92,7 @@ describe('MultiWithdrawalController.multiRedeem', () => {
     await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
     await depositAndApproveToTranche(equityTranche, parseUSDC(100), another)
 
-    const exceptions: WithdrawalExceptionStruct[] = [
+    const exceptions = [
       {
         lender: other.address,
         assetAmount: parseUSDC(8),
@@ -100,7 +100,13 @@ describe('MultiWithdrawalController.multiRedeem', () => {
         shareAmount: parseUSDC(40),
         withdrawType: WithdrawType.Principal,
       },
-      { lender: another.address, assetAmount: parseUSDC(5), fee: Zero, shareAmount: parseUSDC(50), withdrawType },
+      {
+        lender: another.address,
+        assetAmount: parseUSDC(5),
+        fee: parseBPS(25),
+        shareAmount: parseUSDC(50),
+        withdrawType,
+      },
     ]
     await expect(equityTrancheData.withdrawController.multiRedeem(equityTranche.address, exceptions))
       .to.emit(equityTrancheData.withdrawController, 'Redeem')
@@ -110,14 +116,16 @@ describe('MultiWithdrawalController.multiRedeem', () => {
         exceptions[0].withdrawType,
         exceptions[0].assetAmount,
         exceptions[0].shareAmount,
+        Zero,
       )
       .to.emit(equityTrancheData.withdrawController, 'Redeem')
       .withArgs(
         exceptions[1].lender,
         equityTranche.address,
         exceptions[1].withdrawType,
-        exceptions[1].assetAmount,
+        exceptions[1].assetAmount.div(4).mul(3),
         exceptions[1].shareAmount,
+        exceptions[1].assetAmount.div(4),
       )
   })
 

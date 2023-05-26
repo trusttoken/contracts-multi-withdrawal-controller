@@ -131,7 +131,7 @@ contract MultiWithdrawalController is IMultiWithdrawalController, Initializable,
 
         fee = _calculateSubtractedFee(exception.assetAmount, exception.fee);
         assets = exception.assetAmount - fee;
-        emit Redeem(owner, msg.sender, exception.withdrawType, assets, shares);
+        emit Redeem(owner, msg.sender, exception.withdrawType, assets, shares, fee);
     }
 
     function _ensureFloorRemains(
