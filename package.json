@@ -44,7 +44,7 @@
     "ethereum-mars": "0.2.6-dev.eb75a27",
     "ethereum-waffle": "4.0.10",
     "ethers": "^5.7.1",
-    "hardhat": "^2.14.0",
+    "hardhat": "^2.15.0",
     "hardhat-gas-reporter": "^1.0.9",
     "hardhat-waffle-dev": "2.0.5-dev.ffdc567",
     "mocha": "^10.0.0",
