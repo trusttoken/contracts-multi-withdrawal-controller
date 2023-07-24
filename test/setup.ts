@@ -8,6 +8,7 @@ export interface FixtureReturns {
   wallet: Wallet
   other: Wallet
   another: Wallet
+  farther: Wallet
 }
 
 let loadFixture: ReturnType<typeof setupOnce> | undefined
@@ -30,9 +31,9 @@ function setupOnce() {
   async function makeLoader(): Promise<{ loader: FixtureLoader; returns: FixtureReturns }> {
     const provider = waffle.provider
     await provider.send('hardhat_reset', [])
-    const [wallet, other, another, ...rest] = provider.getWallets()
-    const loader = waffle.createFixtureLoader([wallet, other, another, ...rest], provider)
-    const returns = { provider, wallet, other, another }
+    const [wallet, other, another, farther, ...rest] = provider.getWallets()
+    const loader = waffle.createFixtureLoader([wallet, other, another, farther, ...rest], provider)
+    const returns = { provider, wallet, other, another, farther }
     return { loader, returns }
   }
 

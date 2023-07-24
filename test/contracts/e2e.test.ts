@@ -63,7 +63,7 @@ describe('e2e', () => {
       expect(lenderAssetsAfter).to.be.eq(parseUSDC(100))
     })
 
-    it('withdraws principle', async () => {
+    it('withdraws principal', async () => {
       const {
         equityTranche,
         startPortfolioAndEnableLiveActions,
@@ -354,6 +354,91 @@ describe('e2e', () => {
     expect(anotherAssets).to.be.closeTo(parseUSDC(83.2), 1)
     const otherAssets = await equityTranche.convertToAssets(await equityTranche.balanceOf(other.address))
     expect(otherAssets).to.be.closeTo(parseUSDC(332.8), 1)
+  })
+
+  it("withdrawal during portfolio status live doesn't impact existing and new investors amounts", async () => {
+    const {
+      equityTranche,
+      equityTrancheData,
+      wallet,
+      token,
+      other,
+      another,
+      farther,
+      addAndFundLoan,
+      repayLoanInFull,
+      depositAndApproveToTranche,
+      startPortfolioAndEnableLiveActions,
+    } = await loadFixture()
+
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), another)
+    await depositAndApproveToTranche(equityTranche, parseUSDC(400), farther)
+    await startPortfolioAndEnableLiveActions()
+
+    const loan = createLoan(parseUSDC(200), parseUSDC(20), other)
+    const loanId = await addAndFundLoan(loan)
+    await repayLoanInFull(loanId, loan)
+
+    const principalWithdrawAmount = parseUSDC(300)
+    const balancesBefore = await getBalances(token, farther)
+
+    const anotherException: WithdrawalExceptionStruct[] = [
+      {
+        lender: farther.address,
+        assetAmount: principalWithdrawAmount,
+        fee: principalWithdrawalFee,
+        shareAmount: await equityTranche.convertToShares(principalWithdrawAmount),
+        withdrawType: WithdrawType.Principal,
+      },
+    ]
+    await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, anotherException)
+    const balancesAfter = await getBalances(token, farther)
+    verifyBalances(balancesBefore, balancesAfter, [principalWithdrawAmount], principalWithdrawalFee)
+
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), wallet)
+
+    const otherException: WithdrawalExceptionStruct[] = [
+      {
+        lender: another.address,
+        assetAmount: parseUSDC(4),
+        fee: interestWithdrawalFee,
+        shareAmount: await equityTranche.convertToShares(parseUSDC(4)),
+        withdrawType: WithdrawType.Interest,
+      },
+    ]
+    await equityTrancheData.withdrawController.multiRedeem(equityTranche.address, otherException)
+    expect(await token.balanceOf(another.address)).to.eq(parseUSDC(4))
+
+    await verifyAssetsAfterWithdrawal(equityTranche, another, parseUSDC(100))
+    await verifyAssetsAfterWithdrawal(equityTranche, farther, parseUSDC(116))
+    await verifyAssetsAfterWithdrawal(equityTranche, wallet, parseUSDC(100))
+  })
+
+  it("splits loan's interest pro rata regardless of investor investing before or during loan", async () => {
+    const {
+      equityTranche,
+      other,
+      another,
+      farther,
+      addAndFundLoan,
+      repayLoanInFull,
+      depositAndApproveToTranche,
+      startPortfolioAndEnableLiveActions,
+    } = await loadFixture()
+
+    await depositAndApproveToTranche(equityTranche, parseUSDC(400), farther)
+    await startPortfolioAndEnableLiveActions()
+
+    const loan = createLoan(parseUSDC(200), parseUSDC(20), other)
+    const loanId = await addAndFundLoan(loan)
+
+    await depositAndApproveToTranche(equityTranche, parseUSDC(100), another)
+    await repayLoanInFull(loanId, loan)
+
+    const fartherAssets = await equityTranche.convertToAssets(await equityTranche.balanceOf(farther.address))
+    expect(fartherAssets).to.be.closeTo(parseUSDC(416), 1000)
+    const anotherAssets = await equityTranche.convertToAssets(await equityTranche.balanceOf(another.address))
+    expect(anotherAssets).to.be.closeTo(parseUSDC(104), 1000)
   })
 
   const verifyAssetsAfterWithdrawal = async (
