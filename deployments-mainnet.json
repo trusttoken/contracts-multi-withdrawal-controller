@@ -1,0 +1,9 @@
+{
+  "mainnet": {
+    "multiWithdrawalController": {
+      "txHash": "0xb80ce846e6fe934f80099246d2847c615e4afc0efa6e1d5a08bedf37eaf88468",
+      "address": "0x7932231B7Cf083f1F3E3483A3b93d4D31675B5B4",
+      "multisig": false
+    }
+  }
+}
