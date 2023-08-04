@@ -3,15 +3,15 @@ import { setupFixtureLoader } from '../setup'
 import { WithdrawalExceptionStruct } from 'contracts/MultiWithdrawalController'
 import { expect } from 'chai'
 import { BigNumber, Wallet } from 'ethers'
-import { structuredPortfolioFixture, WithdrawType } from 'fixtures/structuredPortfolioFixture'
+import { structuredPortfolioFixture } from 'fixtures/structuredPortfolioFixture'
 import { Loan } from 'fixtures/setupLoansManagerHelpers'
 import { TrancheVault } from 'contracts'
+import { Fixture, WithdrawType } from 'fixtures/types'
+import { structuredAssetVaultFixture } from 'fixtures/structuredAssetVaultFixture'
 
-describe('e2e', () => {
-  const fixtureLoader = setupFixtureLoader()
+function testE2E(loadFixture: () => Promise<Fixture>) {
   const principalWithdrawalFee = parseBPS(2)
   const interestWithdrawalFee = parseBPS(0)
-  const loadFixture = () => fixtureLoader(structuredPortfolioFixture)
 
   describe('real life examples', () => {
     it('withdraws interest', async () => {
@@ -463,4 +463,20 @@ describe('e2e', () => {
       canBeRepaidAfterDefault: true,
     }
   }
+}
+
+describe('e2e', () => {
+  const fixtureLoader = setupFixtureLoader()
+
+  describe('StructuredPortfolio', () => {
+    const loadFixture = () => fixtureLoader(structuredPortfolioFixture)
+
+    testE2E(loadFixture)
+  })
+
+  describe('StructuredAssetVault', () => {
+    const loadFixture = () => fixtureLoader(structuredAssetVaultFixture)
+
+    testE2E(loadFixture)
+  })
 })

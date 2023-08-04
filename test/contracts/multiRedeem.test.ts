@@ -1,13 +1,13 @@
 import { getBalances, parseBPS, parseUSDC, timeTravelTo, verifyBalances } from 'utils'
 import { WithdrawalExceptionStruct } from 'contracts/MultiWithdrawalController'
-import { PortfolioStatus, structuredPortfolioLiveFixture, WithdrawType } from 'fixtures/structuredPortfolioFixture'
+import { structuredPortfolioLiveFixture } from 'fixtures/structuredPortfolioFixture'
 import { setupFixtureLoader } from 'test/setup'
 import { expect } from 'chai'
 import { AddressZero, Zero } from '@ethersproject/constants'
+import { LiveFixture, PortfolioStatus, WithdrawType } from 'fixtures/types'
+import { structuredAssetVaultLiveFixture } from 'fixtures/structuredAssetVaultFixture'
 
-describe('MultiWithdrawalController.multiRedeem', () => {
-  const fixtureLoader = setupFixtureLoader()
-  const loadFixture = () => fixtureLoader(structuredPortfolioLiveFixture)
+function testMultiRedeem(loadFixture: () => Promise<LiveFixture>) {
   const withdrawType = WithdrawType.Interest
 
   it('withdraws funds for single lender', async () => {
@@ -272,7 +272,7 @@ describe('MultiWithdrawalController.multiRedeem', () => {
 
     it('works after portfolio end date', async () => {
       const {
-        structuredPortfolio,
+        getPortfolioEndDate,
         equityTranche,
         equityTrancheData,
         token,
@@ -283,7 +283,7 @@ describe('MultiWithdrawalController.multiRedeem', () => {
       await depositAndApproveToTranche(equityTranche, parseUSDC(100), other)
 
       await equityTrancheData.withdrawController.setWithdrawAllowed(false, PortfolioStatus.Closed)
-      await timeTravelTo(provider, (await structuredPortfolio.endDate()).add(100).toNumber())
+      await timeTravelTo(provider, (await getPortfolioEndDate()).add(100).toNumber())
       const balancesBefore = await getBalances(token, other)
 
       const exceptions: WithdrawalExceptionStruct[] = [
@@ -300,5 +300,19 @@ describe('MultiWithdrawalController.multiRedeem', () => {
       const balancesAfter = await getBalances(token, other)
       verifyBalances(balancesBefore, balancesAfter, [parseUSDC(50)])
     })
+  })
+}
+
+describe('MultiWithdrawalController.multiRedeem', () => {
+  const fixtureLoader = setupFixtureLoader()
+
+  describe('StructuredPortfolio', () => {
+    const loadFixture = () => fixtureLoader(structuredPortfolioLiveFixture)
+    testMultiRedeem(loadFixture)
+  })
+
+  describe('StructuredAssetVault', () => {
+    const loadFixture = () => fixtureLoader(structuredAssetVaultLiveFixture)
+    testMultiRedeem(loadFixture)
   })
 })

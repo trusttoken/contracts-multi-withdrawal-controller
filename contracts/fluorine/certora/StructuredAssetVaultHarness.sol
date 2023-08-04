@@ -8,21 +8,16 @@
 // Additional Use Grant: Any uses listed and defined at this [LICENSE](https://github.com/trusttoken/contracts-carbon/license.md)
 // Change Date: December 31, 2025
 // Change License: MIT
+pragma solidity ^0.8.18;
 
-pragma solidity ^0.8.16;
+import {StructuredAssetVault} from "../StructuredAssetVault.sol";
 
-import {ITransferController} from "../interfaces/ITransferController.sol";
-import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+contract StructuredAssetVaultHarness is StructuredAssetVault {
+    function assetBalance() external view returns (uint256) {
+        return asset.balanceOf(address(this));
+    }
 
-contract TransferController is ITransferController, Initializable {
-    function initialize(address) external initializer {}
-
-    function onTransfer(
-        address,
-        address,
-        address,
-        uint256
-    ) external pure returns (bool isTransferAllowed) {
-        return true;
+    function tranchesLength() external view returns (uint256) {
+        return tranches.length;
     }
 }

@@ -2,14 +2,13 @@ import { parseUSDC } from 'utils'
 import { structuredPortfolioFixture, structuredPortfolioLiveFixture } from 'fixtures/structuredPortfolioFixture'
 import { setupFixtureLoader } from 'test/setup'
 import { expect } from 'chai'
+import { Fixture, LiveFixture } from 'fixtures/types'
+import { structuredAssetVaultFixture, structuredAssetVaultLiveFixture } from 'fixtures/structuredAssetVaultFixture'
 
-describe('MultiWithdrawalController.onWithdraw', () => {
-  const fixtureLoader = setupFixtureLoader()
-  const loadFixture = () => fixtureLoader(structuredPortfolioLiveFixture)
-
+function testOnWithdraw(loadFixture: () => Promise<Fixture>, loadLiveFixture: () => Promise<LiveFixture>) {
   describe('when withdrawing based on exception', () => {
     it('reverts if called by lender', async () => {
-      const { withdrawFromTranche, equityTranche, wallet } = await loadFixture()
+      const { withdrawFromTranche, equityTranche, wallet } = await loadLiveFixture()
       await expect(withdrawFromTranche(equityTranche, parseUSDC(0), wallet.address)).to.be.revertedWith(
         'MWC: Withdrawals are not allowed',
       )
@@ -26,7 +25,7 @@ describe('MultiWithdrawalController.onWithdraw', () => {
         startAndClosePortfolio,
         token,
         wallet,
-      } = await fixtureLoader(structuredPortfolioFixture)
+      } = await loadFixture()
 
       const amount = parseUSDC(1000)
       await depositToTranche(equityTranche, amount)
@@ -39,5 +38,23 @@ describe('MultiWithdrawalController.onWithdraw', () => {
         [-amount, amount],
       )
     })
+  })
+}
+
+describe('MultiWithdrawalController.onWithdraw', () => {
+  const fixtureLoader = setupFixtureLoader()
+
+  describe('StructuredPortfolio', () => {
+    testOnWithdraw(
+      () => fixtureLoader(structuredPortfolioFixture),
+      () => fixtureLoader(structuredPortfolioLiveFixture),
+    )
+  })
+
+  describe('StructuredAssetVault', () => {
+    testOnWithdraw(
+      () => fixtureLoader(structuredAssetVaultFixture),
+      () => fixtureLoader(structuredAssetVaultLiveFixture),
+    )
   })
 })

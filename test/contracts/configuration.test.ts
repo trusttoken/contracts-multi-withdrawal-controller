@@ -1,12 +1,11 @@
 import { expect } from 'chai'
-import { PortfolioStatus, structuredPortfolioFixture } from 'fixtures/structuredPortfolioFixture'
+import { Fixture, PortfolioStatus } from 'fixtures/types'
+import { structuredAssetVaultFixture } from 'fixtures/structuredAssetVaultFixture'
+import { structuredPortfolioFixture } from 'fixtures/structuredPortfolioFixture'
 import { setupFixtureLoader } from 'test/setup'
 import { parseUSDC } from 'utils/parseUSDC'
 
-describe('MultiWithdrawalController configuration', () => {
-  const fixtureLoader = setupFixtureLoader()
-  const loadFixture = () => fixtureLoader(structuredPortfolioFixture)
-
+function testConfiguration(loadFixture: () => Promise<Fixture>) {
   describe('setFloor', () => {
     it('sets the new floor', async () => {
       const {
@@ -75,5 +74,21 @@ describe('MultiWithdrawalController configuration', () => {
         withdrawController.connect(other).configure(currentFloor, { status: PortfolioStatus.Live, value: false }),
       ).not.to.be.reverted
     })
+  })
+}
+
+describe('MultiWithdrawalController configuration', () => {
+  const fixtureLoader = setupFixtureLoader()
+
+  describe('StructuredPortfolio', () => {
+    const loadFixture = () => fixtureLoader(structuredPortfolioFixture)
+
+    testConfiguration(loadFixture)
+  })
+
+  describe('StructuredAssetVault', () => {
+    const loadFixture = () => fixtureLoader(structuredAssetVaultFixture)
+
+    testConfiguration(loadFixture)
   })
 })

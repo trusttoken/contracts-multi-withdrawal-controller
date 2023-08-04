@@ -4,15 +4,14 @@ import {
   MockToken__factory,
   MultiWithdrawalController,
   MultiWithdrawalController__factory,
-  StructuredPortfolioFactory__factory,
-  StructuredPortfolioTest__factory,
+  StructuredAssetVaultFactory__factory,
+  StructuredAssetVaultTest__factory,
   TrancheVaultTest,
   TrancheVaultTest__factory,
 } from 'build/types'
 import { BigNumberish, constants, Contract, ContractTransaction, utils, Wallet } from 'ethers'
 import { DAY, YEAR } from 'utils/constants'
 import { extractEventArgFromTx } from 'utils/extractEventArgFromTx'
-import { deployFixedInterestOnlyLoans } from './deployFixedInterestOnlyLoans'
 import { deployControllers } from 'fixtures/deployControllers'
 import { deployProtocolConfig } from './deployProtocolConfig'
 import { AllowAllLenderVerifier__factory } from 'build/types/factories/AllowAllLenderVerifier__factory'
@@ -25,7 +24,7 @@ export interface PortfolioParams {
   minimumSize: number
 }
 
-export const getStructuredPortfolioFactoryFixture = ({
+export const getStructuredAssetVaultFactoryFixture = ({
   tokenDecimals = 6,
   initialTokens = [1e12, 1e10],
 }: {
@@ -43,21 +42,19 @@ export const getStructuredPortfolioFactoryFixture = ({
       await token.mint(wallets[index].address, parseTokenUnits(amount))
     }
 
-    const structuredPortfolioImplementation = await new StructuredPortfolioTest__factory(wallet).deploy()
+    const assetVaultImplementation = await new StructuredAssetVaultTest__factory(wallet).deploy()
     const trancheVaultImplementation = await new TrancheVaultTest__factory(wallet).deploy()
 
     const { protocolConfig, protocolConfigParams } = await deployProtocolConfig(wallet)
 
-    const structuredPortfolioFactory = await new StructuredPortfolioFactory__factory(wallet).deploy(
-      structuredPortfolioImplementation.address,
+    const assetVaultFactory = await new StructuredAssetVaultFactory__factory(wallet).deploy(
+      assetVaultImplementation.address,
       trancheVaultImplementation.address,
       protocolConfig.address,
     )
 
-    const whitelistedManagerRole = await structuredPortfolioFactory.WHITELISTED_MANAGER_ROLE()
-    await structuredPortfolioFactory.grantRole(whitelistedManagerRole, wallet.address)
-
-    const { fixedInterestOnlyLoans } = await deployFixedInterestOnlyLoans([wallet])
+    const whitelistedManagerRole = await assetVaultFactory.WHITELISTED_MANAGER_ROLE()
+    await assetVaultFactory.grantRole(whitelistedManagerRole, wallet.address)
 
     const { depositController, withdrawController, transferController } = await deployControllers(wallet)
 
@@ -142,26 +139,26 @@ export const getStructuredPortfolioFactoryFixture = ({
     async function createPortfolio(
       params: Partial<{
         token: Wallet | Contract
-        fixedInterestOnlyLoans: Wallet | Contract
         portfolioParams: PortfolioParams
         tranchesInitData: TrancheInitData[]
         expectedEquityRate: { from: number; to: number }
+        onlyAllowedBorrowers: boolean
       }> = {},
     ) {
       const args = {
         token,
-        fixedInterestOnlyLoans,
         portfolioParams,
         tranchesInitData,
         expectedEquityRate,
+        onlyAllowedBorrowers: false,
         ...params,
       }
-      const createPortfolioTx = await structuredPortfolioFactory.createPortfolio(
+      const createPortfolioTx = await assetVaultFactory.createAssetVault(
         args.token.address,
-        args.fixedInterestOnlyLoans.address,
         args.portfolioParams,
         args.tranchesInitData,
         args.expectedEquityRate,
+        args.onlyAllowedBorrowers,
       )
       const portfolio = await getPortfolioFromTx(createPortfolioTx)
 
@@ -224,28 +221,27 @@ export const getStructuredPortfolioFactoryFixture = ({
 
     async function getPortfolioFromTx(tx: ContractTransaction = createPortfolioTx) {
       const portfolioAddress: string = await extractEventArgFromTx(tx, [
-        structuredPortfolioFactory.address,
-        'PortfolioCreated',
-        'newPortfolio',
+        assetVaultFactory.address,
+        'AssetVaultCreated',
+        'newAssetVault',
       ])
-      return new StructuredPortfolioTest__factory(wallet).attach(portfolioAddress)
+      return new StructuredAssetVaultTest__factory(wallet).attach(portfolioAddress)
     }
 
     async function getTranchesFromTx(tx: ContractTransaction = createPortfolioTx) {
       const tranchesAddresses: string[] = await extractEventArgFromTx(tx, [
-        structuredPortfolioFactory.address,
-        'PortfolioCreated',
+        assetVaultFactory.address,
+        'AssetVaultCreated',
         'tranches',
       ])
       return tranchesAddresses.map((address) => new TrancheVaultTest__factory(wallet).attach(address))
     }
 
     return {
-      structuredPortfolioFactory,
+      assetVaultFactory,
       tranchesData,
       tranches,
       token,
-      fixedInterestOnlyLoans,
       portfolioDuration,
       portfolioParams,
       createPortfolioTx,
@@ -272,4 +268,4 @@ export const getStructuredPortfolioFactoryFixture = ({
   }
 }
 
-export const structuredPortfolioFactoryFixture = getStructuredPortfolioFactoryFixture({ tokenDecimals: 6 })
+export const structuredAssetVaultFactoryFixture = getStructuredAssetVaultFactoryFixture({ tokenDecimals: 6 })

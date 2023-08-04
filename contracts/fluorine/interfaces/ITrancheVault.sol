@@ -4,19 +4,19 @@
 
 // Parameters
 // Licensor: TrueFi Foundation Ltd.
-// Licensed Work: Structured Credit Vaults. The Licensed Work is (c) 2022 TrueFi Foundation Ltd.
-// Additional Use Grant: Any uses listed and defined at this [LICENSE](https://github.com/trusttoken/contracts-carbon/license.md)
-// Change Date: December 31, 2025
+// Licensed Work: Structured Asset Vaults. The Licensed Work is (c) 2023 TrueFi Foundation Ltd.
+// Additional Use Grant: Any uses listed and defined at this [LICENSE](https://github.com/trusttoken/contracts-fluorine/license.md)
+// Change Date: December 31, 2030
 // Change License: MIT
 
-pragma solidity ^0.8.16;
+pragma solidity ^0.8.18;
 
 import {IERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/interfaces/IERC4626Upgradeable.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IDepositController} from "./IDepositController.sol";
 import {IWithdrawController} from "./IWithdrawController.sol";
 import {ITransferController} from "./ITransferController.sol";
-import {IStructuredPortfolio} from "./IStructuredPortfolio.sol";
+import {IStructuredAssetVault} from "./IStructuredAssetVault.sol";
 import {IProtocolConfig} from "./IProtocolConfig.sol";
 import {IERC20WithDecimals} from "./IERC20WithDecimals.sol";
 
@@ -99,8 +99,8 @@ interface ITrancheVault is IERC4626Upgradeable, IERC165 {
     /// @notice Role used to access tranche controllers setters
     function TRANCHE_CONTROLLER_OWNER_ROLE() external view returns (bytes32);
 
-    /// @return Associated StructuredPortfolio address
-    function portfolio() external view returns (IStructuredPortfolio);
+    /// @return Associated StructuredAssetVault address
+    function portfolio() external view returns (IStructuredAssetVault);
 
     /// @return Address of DepositController contract responsible for deposit-related operations on TrancheVault
     function depositController() external view returns (IDepositController);
@@ -111,7 +111,7 @@ interface ITrancheVault is IERC4626Upgradeable, IERC165 {
     /// @return Address of TransferController contract deducing whether a specific transfer is allowed or not
     function transferController() external view returns (ITransferController);
 
-    /// @return TrancheVault index in StructuredPortfolio tranches order
+    /// @return TrancheVault index in StructuredAssetVault tranches order
     function waterfallIndex() external view returns (uint256);
 
     /// @return Annual rate of continuous fee accrued on every block on the top of checkpoint tranche total assets (expressed in bps)
@@ -145,11 +145,11 @@ interface ITrancheVault is IERC4626Upgradeable, IERC165 {
     function setTransferController(ITransferController newController) external;
 
     /**
-     * @notice Sets address of StructuredPortfolio associated with TrancheVault
+     * @notice Sets address of StructuredAssetVault associated with TrancheVault
      * @dev Can be executed only once
-     * @param _portfolio StructuredPortfolio address
+     * @param _portfolio StructuredAssetVault address
      */
-    function setPortfolio(IStructuredPortfolio _portfolio) external;
+    function setPortfolio(IStructuredAssetVault _portfolio) external;
 
     /**
      * @notice Manager fee rate setter
@@ -175,7 +175,7 @@ interface ITrancheVault is IERC4626Upgradeable, IERC165 {
      * @param _withdrawController Address of WithdrawController contract responsible for withdraw-related operations on TrancheVault
      * @param _transferController Address of TransferController contract deducing whether a specific transfer is allowed or not
      * @param _protocolConfig Address of ProtocolConfig contract storing TrueFi protocol-related data
-     * @param _waterfallIndex TrancheVault index in StructuredPortfolio tranches order
+     * @param _waterfallIndex TrancheVault index in StructuredAssetVault tranches order
      * @param manager Address on which MANAGER_ROLE is granted
      * @param _managerFeeRate Annual rate of continuous fee accrued on every block on the top of checkpoint tranche total assets (expressed in bps)
      */
@@ -198,10 +198,9 @@ interface ITrancheVault is IERC4626Upgradeable, IERC165 {
     function updateCheckpoint() external;
 
     /**
-     * @notice Updates TrancheVault checkpoint with total assets value calculated in StructuredPortfolio waterfall
-     * @dev
-     * - can be executed only by associated StructuredPortfolio
-     * - is used by StructuredPortfolio only in Live portfolio status
+     * @notice Updates TrancheVault checkpoint with total assets value calculated in StructuredAssetVault waterfall
+     * @dev - can be executed only by associated StructuredAssetVault
+     *      - is used by StructuredAssetVault only in Live and Closed portfolio statuses
      * @param _totalAssets Total assets amount to save in the checkpoint
      */
     function updateCheckpointFromPortfolio(uint256 _totalAssets) external;
@@ -234,16 +233,15 @@ interface ITrancheVault is IERC4626Upgradeable, IERC165 {
     function unpaidManagerFee() external view returns (uint256);
 
     /**
-     * @notice Initializes TrancheVault checkpoint and transfers all TrancheVault assets to associated StructuredPortfolio
-     * @dev
-     * - can be executed only by associated StructuredPortfolio
-     * - called by associated StructuredPortfolio on transition to Live status
+     * @notice Initializes TrancheVault checkpoint and transfers all TrancheVault assets to associated StructuredAssetVault
+     * @dev - can be executed only by associated StructuredAssetVault
+     *      - called by associated StructuredAssetVault on transition to Live status
      */
     function onPortfolioStart() external;
 
     /**
-     * @notice Updates virtualTokenBalance and checkpoint after transferring assets from StructuredPortfolio to TrancheVault
-     * @dev Can be executed only by associated StructuredPortfolio
+     * @notice Updates virtualTokenBalance and checkpoint after transferring assets from StructuredAssetVault to TrancheVault
+     * @dev Can be executed only by associated StructuredAssetVault
      * @param assets Transferred assets amount
      */
     function onTransfer(uint256 assets) external;

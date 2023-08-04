@@ -11,12 +11,18 @@
 
 pragma solidity ^0.8.16;
 
-import {IERC20WithDecimals} from "../interfaces/IERC20WithDecimals.sol";
-import {ITrancheVault, Checkpoint} from "../interfaces/ITrancheVault.sol";
+import {ITransferController} from "../interfaces/ITransferController.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-contract FuzzingLender {
-    function deposit(ITrancheVault tranche, uint256 amount) external {
-        IERC20WithDecimals(tranche.asset()).approve(address(tranche), amount);
-        tranche.deposit(amount, address(this));
+contract TransferEnabledController is ITransferController, Initializable {
+    function initialize(address) external initializer {}
+
+    function onTransfer(
+        address,
+        address,
+        address,
+        uint256
+    ) external pure returns (bool isTransferAllowed) {
+        return true;
     }
 }

@@ -3,16 +3,13 @@ import { Actor } from './types'
 import { ClaimableInterestWorld } from './claimableInterestWorld'
 import { setupFixtureLoader } from '../../test/setup'
 import { BigNumber, Wallet } from 'ethers'
-import {
-  getStructuredPortfolioLiveFixture,
-  StructuredPortfolioFixtureConfig,
-  WithdrawType,
-} from 'fixtures/structuredPortfolioFixture'
+import { getStructuredPortfolioLiveFixture } from 'fixtures/structuredPortfolioFixture'
 import { expect } from 'chai'
 import { DAY, parseUSDC } from 'utils'
 import { Loan } from 'fixtures/setupLoansManagerHelpers'
 import { WithdrawalExceptionStruct } from 'contracts/MultiWithdrawalController'
 import { Zero } from '@ethersproject/constants'
+import { FixtureConfig, WithdrawType } from 'fixtures/types'
 
 function parseUsNumber(str: string): number {
   return parseFloat(str.replaceAll(',', ''))
@@ -21,7 +18,7 @@ function parseUsNumber(str: string): number {
 const PRECISION = 0.001
 
 Given('a Portfolio with MultiWithdrawController', async function (this: ClaimableInterestWorld) {
-  const config: StructuredPortfolioFixtureConfig = {
+  const config: FixtureConfig = {
     tokenDecimals: 6,
     initialDeposits: [],
     initialTokens: [],

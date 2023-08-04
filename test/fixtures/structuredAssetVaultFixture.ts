@@ -1,16 +1,16 @@
 import { DepositController, TrancheVaultTest } from 'build/types'
 import { BigNumber, BigNumberish, constants, Wallet } from 'ethers'
-import { getStructuredPortfolioFactoryFixture } from './structuredPortfolioFactoryFixture'
-import { setupLoansManagerHelpers } from './setupLoansManagerHelpers'
+import { setupAssetVaultLoansHelper } from './setupLoansManagerHelpers'
 import { YEAR } from 'utils/constants'
 import { timeTravel } from 'utils/timeTravel'
 import { getTxTimestamp } from 'utils/getTxTimestamp'
 import { sum } from 'utils/sum'
 import { MockProvider } from 'ethereum-waffle'
 import { parseBPS } from 'utils'
-import { FixtureConfig, FixtureTrancheData, PortfolioStatus } from './types'
+import { getStructuredAssetVaultFactoryFixture } from './structuredAssetVaultFactoryFixture'
+import { FixtureTrancheData, PortfolioStatus, FixtureConfig } from './types'
 
-const getStructuredPortfolioFixture = ({
+const getStructuredAssetVaultFixture = ({
   tokenDecimals = 6,
   initialTokens = [1e12, 1e10],
 }: {
@@ -18,15 +18,20 @@ const getStructuredPortfolioFixture = ({
   initialTokens?: number[]
 }) => {
   return async ([wallet, other, ...rest]: Wallet[], provider: MockProvider) => {
-    const factoryFixtureResult = await getStructuredPortfolioFactoryFixture({ tokenDecimals, initialTokens })([
+    const factoryFixtureResult = await getStructuredAssetVaultFactoryFixture({ tokenDecimals, initialTokens })([
       wallet,
       other,
       ...rest,
     ])
-    const { portfolioDuration, getPortfolioFromTx, tranches, tranchesData, fixedInterestOnlyLoans, token } =
-      factoryFixtureResult
+    const { portfolioDuration, getPortfolioFromTx, tranches, tranchesData, token } = factoryFixtureResult
 
-    const structuredPortfolio = await getPortfolioFromTx()
+    const assetVault = await getPortfolioFromTx()
+
+    const repayerRole = await assetVault.REPAYER_ROLE()
+    for (const account of [wallet, other, ...rest]) {
+      const { address } = account
+      await assetVault.grantRole(repayerRole, address)
+    }
 
     function withdrawFromTranche(
       tranche: TrancheVaultTest,
@@ -46,12 +51,12 @@ const getStructuredPortfolioFixture = ({
       return tranche.redeem(amount, receiver, owner)
     }
 
-    async function setDepositAllowed(controller: DepositController, value: boolean, portfolio = structuredPortfolio) {
+    async function setDepositAllowed(controller: DepositController, value: boolean, portfolio = assetVault) {
       await controller.setDepositAllowed(value, await portfolio.status())
     }
 
     async function startPortfolioAndEnableLiveActions() {
-      const tx = await structuredPortfolio.start()
+      const tx = await assetVault.start()
       for (const trancheData of tranchesData) {
         await setDepositAllowed(trancheData.depositController, true)
       }
@@ -59,17 +64,17 @@ const getStructuredPortfolioFixture = ({
     }
 
     async function startAndClosePortfolio() {
-      await structuredPortfolio.start()
+      await assetVault.start()
       await timeTravel(provider, portfolioDuration)
-      await structuredPortfolio.close()
+      await assetVault.close()
     }
 
-    async function mintToPortfolio(amount: BigNumberish, portfolio = structuredPortfolio) {
+    async function mintToPortfolio(amount: BigNumberish, portfolio = assetVault) {
       await token.mint(portfolio.address, amount)
       await portfolio.mockIncreaseVirtualTokenBalance(amount)
     }
 
-    async function burnFromPortfolio(amount: BigNumberish, portfolio = structuredPortfolio) {
+    async function burnFromPortfolio(amount: BigNumberish, portfolio = assetVault) {
       await token.burn(portfolio.address, amount)
       await portfolio.mockDecreaseVirtualTokenBalance(amount)
     }
@@ -92,32 +97,27 @@ const getStructuredPortfolioFixture = ({
     }
 
     function updateCheckpoints() {
-      return structuredPortfolio.updateCheckpoints()
+      return assetVault.updateCheckpoints()
     }
 
     function getPortfolioTotalAssets() {
-      return structuredPortfolio.totalAssets()
+      return assetVault.totalAssets()
     }
 
     function getPortfolioVirtualTokenBalance() {
-      return structuredPortfolio.virtualTokenBalance()
+      return assetVault.virtualTokenBalance()
+    }
+
+    function getPortfolioEndDate() {
+      return assetVault.endDate()
     }
 
     const [equityTranche, juniorTranche, seniorTranche] = tranches
 
-    const loansManagerHelpers = await setupLoansManagerHelpers(
-      structuredPortfolio,
-      fixedInterestOnlyLoans,
-      other,
-      token,
-    )
-
-    function getPortfolioEndDate() {
-      return structuredPortfolio.endDate()
-    }
+    const loansManagerHelpers = await setupAssetVaultLoansHelper(assetVault, other, token)
 
     return {
-      structuredPortfolio,
+      assetVault,
       ...loansManagerHelpers,
       PortfolioStatus,
       withdrawFromTranche,
@@ -143,9 +143,9 @@ const getStructuredPortfolioFixture = ({
   }
 }
 
-export const structuredPortfolioFixture = getStructuredPortfolioFixture({ tokenDecimals: 6 })
+export const structuredAssetVaultFixture = getStructuredAssetVaultFixture({ tokenDecimals: 6 })
 
-export const getStructuredPortfolioLiveFixture = (
+export const getStructuredAssetVaultLiveFixture = (
   config: FixtureConfig = {
     tokenDecimals: 6,
     initialDeposits: [2e6, 3e6, 5e6],
@@ -153,7 +153,7 @@ export const getStructuredPortfolioLiveFixture = (
   },
 ) => {
   return async ([wallet, borrower, ...rest]: Wallet[], provider: MockProvider) => {
-    const portfolioFixtureResult = await getStructuredPortfolioFixture(config)([wallet, borrower, ...rest], provider)
+    const portfolioFixtureResult = await getStructuredAssetVaultFixture(config)([wallet, borrower, ...rest], provider)
     const {
       tranches,
       depositToTranche,
@@ -209,4 +209,4 @@ export const getStructuredPortfolioLiveFixture = (
   }
 }
 
-export const structuredPortfolioLiveFixture = getStructuredPortfolioLiveFixture()
+export const structuredAssetVaultLiveFixture = getStructuredAssetVaultLiveFixture()

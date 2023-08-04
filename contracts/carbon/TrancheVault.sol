@@ -228,7 +228,7 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         _payDepositFee(depositFee);
         _depositAssets(assetAmount, shares, receiver);
 
-        return assetAmount;
+        return assetAmount + depositFee;
     }
 
     function _maxWithdraw(address owner) public view returns (uint256) {
@@ -388,9 +388,9 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         _updateCheckpoint(totalAssets());
     }
 
-    function updateCheckpointFromPortfolio(uint256 newTotalAssets, uint256 newDeficit) external {
+    function updateCheckpointFromPortfolio(uint256 newTotalAssets) external {
         _requirePortfolio();
-        _updateCheckpoint(newTotalAssets, newDeficit);
+        _updateCheckpoint(newTotalAssets);
     }
 
     function _maxDepositComplyingWithRatio() internal view returns (uint256) {
@@ -406,19 +406,21 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         return _saturatingSub(totalAssets(), minTrancheValueComplyingWithRatio);
     }
 
-    function _updateCheckpoint(uint256 newTotalAssets) internal {
-        return _updateCheckpoint(newTotalAssets, 0);
-    }
-
     /**
      * @param newTotalAssets Total assets value to save in checkpoint with fees deducted
      */
-    function _updateCheckpoint(uint256 newTotalAssets, uint256 newDeficit) internal {
+    function _updateCheckpoint(uint256 newTotalAssets) internal {
         if (portfolio.status() == Status.CapitalFormation) {
             return;
         }
 
         uint256 _totalAssetsBeforeFees = totalAssetsBeforeFees();
+        uint256 _pendingFees = totalPendingFeesForAssets(_totalAssetsBeforeFees);
+        uint256 _totalAssetsAfterFees = _saturatingSub(_totalAssetsBeforeFees, _pendingFees);
+        uint256 newDeficit = waterfallIndex == 0
+            ? 0
+            : portfolio.calculateDeficit(waterfallIndex, _totalAssetsAfterFees, _pendingFees, checkpoint.unpaidFees);
+
         uint256 _protocolFee = _payProtocolFee(_totalAssetsBeforeFees, newDeficit);
         _payManagerFee(_totalAssetsBeforeFees, _protocolFee, newDeficit);
 
@@ -427,7 +429,8 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
             totalAssets: newTotalAssets,
             protocolFeeRate: protocolFeeRate,
             timestamp: block.timestamp,
-            unpaidFees: unpaidManagerFee + unpaidProtocolFee
+            unpaidFees: unpaidManagerFee + unpaidProtocolFee,
+            deficit: newDeficit
         });
 
         emit CheckpointUpdated(newTotalAssets, protocolFeeRate);
@@ -488,7 +491,9 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
             return (0, 0);
         }
 
-        uint256 balance = portfolio.status() == Status.Live ? portfolio.virtualTokenBalance() : virtualTokenBalance;
+        uint256 balance = portfolio.status() == Status.Live
+            ? Math.min(portfolio.virtualTokenBalance(), totalAssetsBeforeFees())
+            : virtualTokenBalance;
 
         if (fee > balance) {
             paidFee = balance;
@@ -515,11 +520,12 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
     }
 
     function _pendingProtocolFee(uint256 _totalAssetsBeforeFees) internal view returns (uint256) {
-        return _pendingProtocolFee(_totalAssetsBeforeFees, portfolio.getTrancheData(waterfallIndex).loansDeficitCheckpoint.deficit);
+        return _pendingProtocolFee(_totalAssetsBeforeFees, checkpoint.deficit);
     }
 
     function _pendingProtocolFee(uint256 _totalAssetsBeforeFees, uint256 newDeficit) internal view returns (uint256) {
-        uint256 totalProtocolFee = _accruedFee(checkpoint.protocolFeeRate, _totalAssetsBeforeFees) + unpaidProtocolFee;
+        uint256 effectiveTotalAssetsBeforeFees = _saturatingSub(_totalAssetsBeforeFees, checkpoint.unpaidFees);
+        uint256 totalProtocolFee = _accruedFee(checkpoint.protocolFeeRate, effectiveTotalAssetsBeforeFees) + unpaidProtocolFee;
         uint256 maxTrancheValue = _totalAssetsBeforeFees + newDeficit;
 
         return _capFee(totalProtocolFee, maxTrancheValue);
@@ -530,12 +536,7 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
     }
 
     function _pendingManagerFee(uint256 _totalAssetsBeforeFees, uint256 _protocolFees) internal view returns (uint256) {
-        return
-            _pendingManagerFee(
-                _totalAssetsBeforeFees,
-                _protocolFees,
-                portfolio.getTrancheData(waterfallIndex).loansDeficitCheckpoint.deficit
-            );
+        return _pendingManagerFee(_totalAssetsBeforeFees, _protocolFees, checkpoint.deficit);
     }
 
     function _pendingManagerFee(
@@ -546,7 +547,8 @@ contract TrancheVault is ITrancheVault, ERC20Upgradeable, Upgradeable {
         if (portfolio.status() != Status.Live) {
             return unpaidManagerFee;
         }
-        uint256 totalManagerFee = _accruedFee(managerFeeRate, _totalAssetsBeforeFees) + unpaidManagerFee;
+        uint256 effectiveTotalAssetsBeforeFees = _saturatingSub(_totalAssetsBeforeFees, checkpoint.unpaidFees);
+        uint256 totalManagerFee = _accruedFee(managerFeeRate, effectiveTotalAssetsBeforeFees) + unpaidManagerFee;
         uint256 maxTrancheValue = _saturatingSub(_totalAssetsBeforeFees + newDeficit, _protocolFees);
         return _capFee(totalManagerFee, maxTrancheValue);
     }

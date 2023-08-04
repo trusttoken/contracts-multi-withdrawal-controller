@@ -18,14 +18,14 @@ const isCI = process.env.CI
 // Override for CI to use downloaded solc compiler
 // Based on: https://github.com/NomicFoundation/hardhat/issues/1639#issuecomment-876291261
 subtask(TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD, (args: any, hre: any, runSuper: any) => {
-  if (isCI && args.solcVersion === '0.8.16') {
-    const compilerPath = path.join(__dirname, '..', '..', '..', 'tools-cache', 'hardhat', 'solc-v0.8.16')
+  if (isCI && args.solcVersion === '0.8.18') {
+    const compilerPath = path.join(__dirname, '..', '..', '..', 'tools-cache', 'hardhat', 'solc-v0.8.18')
 
     return {
       compilerPath,
       isSolcJs: false,
       version: args.solcVersion,
-      longVersion: '0.8.16',
+      longVersion: '0.8.18',
     }
   }
 
